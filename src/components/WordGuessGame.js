@@ -3,8 +3,12 @@ import { Trophy, Lightbulb, RotateCcw, Sparkles } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
 const WordGuessGame = () => {
+  // 기본 점수를 300점으로 설정 (localStorage에 데이터가 없을 경우만 적용)
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
-  const [score, setScore] = useState(() => Number(localStorage.getItem('word-game-score')) || 0);
+  const [score, setScore] = useState(() => {
+    const savedScore = localStorage.getItem('word-game-score');
+    return savedScore !== null ? Number(savedScore) : 300;
+  });
   const [usedWordIndices, setUsedWordIndices] = useState(() => {
     try { return JSON.parse(localStorage.getItem('word-game-used-indices')) || []; } catch { return []; }
   });
@@ -24,7 +28,6 @@ const WordGuessGame = () => {
     currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0)
   , [currentWord]);
 
-  // 로컬 스토리지 동기화
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
     localStorage.setItem('word-game-score', score);
@@ -35,7 +38,6 @@ const WordGuessGame = () => {
   }, [level, score, usedWordIndices, currentWord, category, scrambledLetters]);
 
   const loadNewWord = useCallback(() => {
-    // 레벨에 따른 데이터베이스 선택
     let db = level <= 19 ? wordDatabase : level <= 99 ? twoWordDatabase : threeWordDatabase;
     const dbKey = level <= 19 ? 's' : level <= 99 ? 'd' : 't';
     
@@ -43,7 +45,6 @@ const WordGuessGame = () => {
     
     let targetIndex;
     if (available.length === 0) {
-      // 모든 단어를 다 썼을 경우 현재 레벨 DB에서 랜덤 추출
       targetIndex = Math.floor(Math.random() * db.length);
     } else {
       targetIndex = available[Math.floor(Math.random() * available.length)];
@@ -51,7 +52,6 @@ const WordGuessGame = () => {
 
     const wordObj = db[targetIndex];
     
-    // 글자 섞기 (공백 제거 후)
     const chars = wordObj.word.replace(/\s/g, '').split('').map((char, i) => ({ 
       char, 
       id: `letter-${Date.now()}-${i}-${Math.random()}` 
@@ -72,20 +72,13 @@ const WordGuessGame = () => {
     setShowHint(false);
   }, [level, usedWordIndices]);
 
-  // currentWord가 없을 때만 새 단어 로드
   useEffect(() => {
-    if (!currentWord) {
-      loadNewWord();
-    }
+    if (!currentWord) loadNewWord();
   }, [currentWord, loadNewWord]);
 
-  // 힌트 클릭 시 즉시 점수 차감
   const handleHintClick = () => {
     if (!showHint) {
-      setScore(prevScore => {
-        const newScore = Math.max(0, prevScore - 100);
-        return newScore;
-      });
+      setScore(prev => Math.max(0, prev - 100));
       setShowHint(true);
     } else {
       setShowHint(false);
@@ -99,14 +92,12 @@ const WordGuessGame = () => {
     if (userAll === correctAll) {
       setMessage('EXCELLENT! 🎉');
       setIsCorrect(true);
-      
       const earnedScore = targetWords.length * 10; 
       
-      // 1.5초 후 다음 레벨로 전환
       setTimeout(() => {
         setScore(s => s + earnedScore);
         setLevel(l => l + 1);
-        setCurrentWord(''); // 이 값이 비워져야 위 useEffect가 loadNewWord를 호출함
+        setCurrentWord('');
       }, 1500);
     } else {
       setMessage('TRY AGAIN!');
@@ -146,6 +137,7 @@ const WordGuessGame = () => {
               <span 
                 key={l.id} 
                 onClick={() => {
+                  if (isCorrect) return;
                   setSelectedLetters(prev => prev.filter(i => i.id !== l.id));
                   setScrambledLetters(prev => [...prev, l]);
                   setMessage('');
@@ -192,7 +184,10 @@ const WordGuessGame = () => {
               <Lightbulb size={14} className={`inline mr-1 ${showHint ? 'text-yellow-500' : ''}`}/>
               {showHint ? 'HINT ON' : 'HINT (-100)'}
             </button>
-            <button onClick={() => setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5))} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold active:bg-gray-200 transition-colors">
+            <button onClick={() => {
+              if (isCorrect) return;
+              setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5));
+            }} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold active:bg-gray-200 transition-colors">
               <RotateCcw size={14} className="inline mr-1"/>SHUFFLE
             </button>
           </div>
@@ -206,7 +201,7 @@ const WordGuessGame = () => {
         <div className="flex flex-wrap gap-2 justify-center mb-8 min-h-[60px]">
           {scrambledLetters.map(l => (
             <button key={l.id} onClick={() => {
-              if (isCorrect) return; // 정답 후 클릭 방지
+              if (isCorrect) return;
               setScrambledLetters(prev => prev.filter(i => i.id !== l.id));
               setSelectedLetters(prev => [...prev, l]);
               setMessage('');
@@ -232,7 +227,7 @@ const WordGuessGame = () => {
           </button>
         </div>
         
-        {message && <div className="mt-4 text-center font-black text-indigo-600 tracking-widest uppercase">{message}</div>}
+        {message && <div className="mt-4 text-center font-black text-indigo-600 tracking-widest uppercase animate-pulse">{message}</div>}
       </div>
     </div>
   );
