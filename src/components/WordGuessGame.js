@@ -105,24 +105,28 @@ const WordGuessGame = () => {
           ))}
         </div>
 
-        {/* 답변 영역: 버튼이 아닌 큰 글자로 표시 */}
-        <div className="min-h-[120px] bg-indigo-50 rounded-2xl flex flex-wrap gap-4 justify-center items-center p-6 mb-8 border-2 border-dashed border-indigo-200">
-          {selectedLetters.length === 0 ? (
-            <span className="text-indigo-200 text-sm font-bold uppercase tracking-widest">Select Letters</span>
-          ) : (
-            selectedLetters.map(l => (
-              <span 
-                key={l.id} 
-                onClick={() => {
-                  setSelectedLetters(prev => prev.filter(i => i.id !== l.id));
-                  setScrambledLetters(prev => [...prev, l]);
-                }} 
-                className="text-4xl font-black text-indigo-600 cursor-pointer hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200"
-              >
-                {l.char.toUpperCase()}
-              </span>
-            ))
-          )}
+        {/* 답변 영역: whitespace-nowrap과 overflow-x-auto를 추가하여 한 줄 보장 */}
+        <div className="min-h-[120px] bg-indigo-50 rounded-2xl flex justify-center items-center p-4 mb-8 border-2 border-dashed border-indigo-200 overflow-x-auto overflow-y-hidden scrollbar-hide">
+          <div className="flex gap-3 px-4 whitespace-nowrap">
+            {selectedLetters.length === 0 ? (
+              <span className="text-indigo-200 text-sm font-bold uppercase tracking-widest">Select Letters</span>
+            ) : (
+              selectedLetters.map(l => (
+                <span 
+                  key={l.id} 
+                  onClick={() => {
+                    setSelectedLetters(prev => prev.filter(i => i.id !== l.id));
+                    setScrambledLetters(prev => [...prev, l]);
+                  }} 
+                  className={`font-black text-indigo-600 cursor-pointer hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200 ${
+                    selectedLetters.length > 8 ? 'text-2xl' : 'text-4xl'
+                  }`}
+                >
+                  {l.char.toUpperCase()}
+                </span>
+              ))
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2">
