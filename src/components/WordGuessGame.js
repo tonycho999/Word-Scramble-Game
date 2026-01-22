@@ -1,12 +1,3 @@
-사용자가 정답 단어들을 어떤 순서로 입력하든 시스템이 이를 인식하여 해당 단어 자리에 착착 채워주고 정답 처리를 해주는 방식으로 로직을 완전히 개편했습니다.
-
-이제 "Apple Banana"가 정답일 때, Banana를 먼저 입력해도 두 번째 줄에 Banana가 초록색으로 표시되며 정답으로 인정됩니다.
-
-수정된 전체 코드 (src/components/WordGuessGame.js)
-이 로직의 핵심은 사용자가 선택한 글자들로 만들 수 있는 단어가 정답 목록에 있는지 실시간으로 비교하는 것입니다.
-
-JavaScript
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Trophy, Lightbulb, RotateCcw, Sparkles } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
