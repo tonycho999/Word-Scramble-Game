@@ -20,7 +20,6 @@ const WordGuessGame = () => {
   const [isCorrect, setIsCorrect] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
-  // 정답 단어 리스트를 메모이제이션 (예: ["apple", "banana"])
   const targetWords = useMemo(() => 
     currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0)
   , [currentWord]);
@@ -62,77 +61,74 @@ const WordGuessGame = () => {
     if (!currentWord || scrambledLetters.length === 0) loadNewWord();
   }, [currentWord, scrambledLetters.length, loadNewWord]);
 
-  // 순서와 상관없이 전체 글자가 맞는지 체크
   const checkGuess = () => {
     const userAll = selectedLetters.map(l => l.char).join('').toLowerCase();
     const correctAll = currentWord.replace(/\s/g, '').toLowerCase();
 
-    // 사용자가 입력한 모든 글자의 조합이 정답의 모든 글자 조합과 일치하는지 확인 (순서 무관하게 글자 뭉치로 비교)
-    if (userAll.length === correctAll.length) {
-      // 각 단어가 정답 셋에 포함되는지 확인하는 로직
-      let tempSelected = [...selectedLetters];
-      let matchCount = 0;
-      
-      targetWords.forEach(target => {
-        const chunk = tempSelected.splice(0, target.length);
-        if (chunk.map(l => l.char).join('').toLowerCase() === target) {
-          matchCount++;
-        }
-      });
-
-      if (matchCount === targetWords.length) {
-        setMessage('EXCELLENT! 🎉');
-        setIsCorrect(true);
-        setTimeout(() => {
-          setCurrentWord('');
-          setScore(s => s + (level * 10));
-          setLevel(l => l + 1);
-        }, 1500);
-        return;
-      }
+    if (userAll === correctAll) {
+      setMessage('EXCELLENT! 🎉');
+      setIsCorrect(true);
+      setTimeout(() => {
+        setCurrentWord('');
+        setScore(s => s + (level * 10));
+        setLevel(l => l + 1);
+      }, 1500);
+    } else {
+      setMessage('TRY AGAIN!');
     }
-    setMessage('TRY AGAIN!');
   };
 
-  // 핵심 로직: 입력된 순서대로 단어 칸을 채우되, 내용이 맞으면 초록색 처리
-  const renderFlexibleWords = () => {
-    let currentPos = 0;
+  // 핵심: 사용자가 입력한 순서와 상관없이 정답 단어를 찾아내어 배치하는 로직
+  const renderFreeOrderWords = () => {
+    let tempSelected = [...selectedLetters];
+    let matchedWords = Array(targetWords.length).fill(null);
+    let usedInMatch = new Set();
+
+    // 1. 완벽하게 일치하는 단어 뭉치 먼저 찾기
+    targetWords.forEach((target, wordIdx) => {
+      // 선택된 전체 글자 중 target의 길이만큼 연속된 글자들을 검사
+      for (let i = 0; i <= tempSelected.length - target.length; i++) {
+        const slice = tempSelected.slice(i, i + target.length);
+        const sliceText = slice.map(l => l.char).join('').toLowerCase();
+
+        if (sliceText === target) {
+          matchedWords[wordIdx] = { letters: slice, isMatch: true };
+          slice.forEach(l => usedInMatch.add(l.id));
+          break;
+        }
+      }
+    });
+
+    // 2. 매칭되지 않은 나머지 글자들을 순서대로 빈 칸에 배분
+    let unmatchedLetters = selectedLetters.filter(l => !usedInMatch.has(l.id));
     
     return targetWords.map((target, idx) => {
-      const len = target.length;
-      const lettersForThisSlot = selectedLetters.slice(currentPos, currentPos + len);
-      currentPos += len;
-
-      const currentInputText = lettersForThisSlot.map(l => l.char).join('').toLowerCase();
-      // 입력된 텍스트가 현재 칸의 정답과 맞거나, 혹은 정답 리스트 중 어디든 포함되어 있는지 확인
-      const isMatch = currentInputText === target;
+      const isWordCorrect = matchedWords[idx] !== null;
+      const displayLetters = isWordCorrect 
+        ? matchedWords[idx].letters 
+        : unmatchedLetters.splice(0, target.length);
 
       return (
         <div key={idx} className="flex flex-col items-center mb-6 last:mb-0 w-full">
           <div className="flex gap-2 items-center flex-wrap justify-center min-h-[48px]">
-            {lettersForThisSlot.map((l) => (
+            {displayLetters.map((l) => (
               <span 
                 key={l.id} 
                 onClick={() => {
                   setSelectedLetters(prev => prev.filter(i => i.id !== l.id));
                   setScrambledLetters(prev => [...prev, l]);
+                  setMessage('');
                 }} 
                 className={`font-black cursor-pointer transition-all duration-300 ${
-                  isMatch ? 'text-green-500 scale-110' : 'text-indigo-600'
-                } ${len > 8 ? 'text-2xl' : 'text-4xl'}`}
+                  isWordCorrect ? 'text-green-500 scale-110' : 'text-indigo-600'
+                } ${target.length > 8 ? 'text-2xl' : 'text-4xl'}`}
               >
                 {l.char.toUpperCase()}
               </span>
             ))}
-            {/* 아직 글자가 다 안 채워졌을 때 가이드 라인 표시 */}
-            {lettersForThisSlot.length < len && (
-              Array(len - lettersForThisSlot.length).fill(0).map((_, i) => (
-                <div key={i} className="w-8 h-1 bg-indigo-100 rounded-full mx-1 mt-6" />
-              ))
-            )}
-            {isMatch && <span className="text-green-500 font-bold ml-2 text-2xl animate-bounce">✓</span>}
+            {isWordCorrect && <span className="text-green-500 font-bold ml-2 text-2xl">✓</span>}
           </div>
-          <div className={`h-1.5 rounded-full mt-2 transition-all duration-500 ${isMatch ? 'bg-green-400 w-full' : 'bg-indigo-100 w-24'}`} />
+          <div className={`h-1.5 rounded-full mt-2 transition-all duration-500 ${isWordCorrect ? 'bg-green-400 w-full' : 'bg-indigo-100 w-20'}`} />
         </div>
       );
     });
@@ -161,10 +157,10 @@ const WordGuessGame = () => {
           </div>
 
           <div className="flex justify-center gap-3">
-            <button onClick={() => setShowHint(!showHint)} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold active:bg-gray-200">
+            <button onClick={() => setShowHint(!showHint)} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold active:bg-gray-200 transition-colors">
               <Lightbulb size={14} className="inline mr-1"/>HINT
             </button>
-            <button onClick={() => setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5))} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold active:bg-gray-200">
+            <button onClick={() => setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5))} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold active:bg-gray-200 transition-colors">
               <RotateCcw size={14} className="inline mr-1"/>SHUFFLE
             </button>
           </div>
@@ -188,11 +184,12 @@ const WordGuessGame = () => {
         </div>
 
         <div className="min-h-[180px] bg-indigo-50 rounded-2xl flex flex-col justify-center items-center p-6 mb-8 border-2 border-dashed border-indigo-200">
-          <div className="w-full">{renderFlexibleWords()}</div>
+          <div className="w-full">{renderFreeOrderWords()}</div>
         </div>
 
         <div className="flex gap-2">
           <button onClick={() => {
+            setUsedWordIndices([]); // 초기화 버튼 클릭 시 usedWordIndices도 비우고 싶으시면 유지, 아니면 이 줄만 삭제
             setScrambledLetters(prev => [...prev, ...selectedLetters]);
             setSelectedLetters([]);
             setMessage('');
