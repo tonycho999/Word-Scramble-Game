@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Trophy, Lightbulb, RotateCcw, Sparkles, Download, X } from 'lucide-react';
+import { Trophy, Lightbulb, RotateCcw, Sparkles, Download, X, Delete } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
 const WordGuessGame = () => {
-  // --- 상태 관리 및 로컬 스토리지 복구 ---
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
   const [score, setScore] = useState(() => {
     const savedScore = localStorage.getItem('word-game-score');
-    return savedScore !== null ? Number(savedScore) : 300; // 초기 점수 300점
+    return savedScore !== null ? Number(savedScore) : 300;
   });
   const [usedWordIndices, setUsedWordIndices] = useState(() => {
     try { return JSON.parse(localStorage.getItem('word-game-used-indices')) || []; } catch { return []; }
@@ -25,12 +24,10 @@ const WordGuessGame = () => {
   const [showHint, setShowHint] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(() => !localStorage.getItem('install-guide-seen'));
 
-  // 정답 단어 리스트 메모이제이션
   const targetWords = useMemo(() => 
     currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0)
   , [currentWord]);
 
-  // --- 데이터 저장 효과 ---
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
     localStorage.setItem('word-game-score', score);
@@ -40,7 +37,6 @@ const WordGuessGame = () => {
     localStorage.setItem('word-game-scrambled', JSON.stringify(scrambledLetters));
   }, [level, score, usedWordIndices, currentWord, category, scrambledLetters]);
 
-  // --- 단어 로드 로직 ---
   const loadNewWord = useCallback(() => {
     let db = level <= 19 ? wordDatabase : level <= 99 ? twoWordDatabase : threeWordDatabase;
     const dbKey = level <= 19 ? 's' : level <= 99 ? 'd' : 't';
@@ -73,10 +69,32 @@ const WordGuessGame = () => {
     if (!currentWord) loadNewWord();
   }, [currentWord, loadNewWord]);
 
-  // --- 핸들러 함수 ---
+  // 실시간 정답 체크 로직
+  useEffect(() => {
+    if (selectedLetters.length === 0 || !currentWord || isCorrect) return;
+
+    const userAll = selectedLetters.map(l => l.char).join('').toLowerCase();
+    const correctAll = currentWord.replace(/\s/g, '').toLowerCase();
+
+    if (userAll === correctAll) {
+      setIsCorrect(true);
+      setMessage('EXCELLENT! 🎉');
+      
+      const earnedScore = targetWords.length * 10;
+      
+      const nextTimer = setTimeout(() => {
+        setScore(s => s + earnedScore);
+        setLevel(l => l + 1);
+        setCurrentWord('');
+      }, 2000); // 2초 후 다음 레벨
+
+      return () => clearTimeout(nextTimer);
+    }
+  }, [selectedLetters, currentWord, isCorrect, targetWords.length]);
+
   const handleHintClick = () => {
     if (!showHint) {
-      setScore(prev => Math.max(0, prev - 100)); // 힌트 사용 시 100점 차감
+      setScore(prev => Math.max(0, prev - 100));
       setShowHint(true);
     } else {
       setShowHint(false);
@@ -88,26 +106,15 @@ const WordGuessGame = () => {
     setShowInstallGuide(false);
   };
 
-  const checkGuess = () => {
-    const userAll = selectedLetters.map(l => l.char).join('').toLowerCase();
-    const correctAll = currentWord.replace(/\s/g, '').toLowerCase();
-
-    if (userAll === correctAll) {
-      setMessage('EXCELLENT! 🎉');
-      setIsCorrect(true);
-      const earnedScore = targetWords.length * 10; // 단어 수 * 10점 획득
-      
-      setTimeout(() => {
-        setScore(s => s + earnedScore);
-        setLevel(l => l + 1);
-        setCurrentWord(''); // 이 값이 비워져야 loadNewWord가 실행됨
-      }, 1500);
-    } else {
-      setMessage('TRY AGAIN!');
-    }
+  // 한 글자 지우기 (마지막 글자 되돌리기)
+  const removeLastLetter = () => {
+    if (selectedLetters.length === 0 || isCorrect) return;
+    const lastLetter = selectedLetters[selectedLetters.length - 1];
+    setSelectedLetters(prev => prev.slice(0, -1));
+    setScrambledLetters(prev => [...prev, lastLetter]);
+    setMessage('');
   };
 
-  // 순서와 상관없이 정답 단어를 찾아 배치하는 핵심 렌더링 로직
   const renderFreeOrderWords = () => {
     let tempSelected = [...selectedLetters];
     let matchedWords = Array(targetWords.length).fill(null);
@@ -155,7 +162,7 @@ const WordGuessGame = () => {
   return (
     <div className="min-h-screen bg-indigo-600 flex items-center justify-center p-4 font-sans text-gray-800 relative">
       
-      {/* --- 안드로이드/iOS 설치 안내 모달 --- */}
+      {/* --- 설치 안내 모달 --- */}
       {showInstallGuide && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-indigo-900/80 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative text-center border-t-8 border-indigo-500">
@@ -226,7 +233,6 @@ const WordGuessGame = () => {
           )}
         </div>
 
-        {/* 글자 선택 영역 */}
         <div className="flex flex-wrap gap-2 justify-center mb-8 min-h-[60px]">
           {scrambledLetters.map(l => (
             <button key={l.id} onClick={() => {
@@ -240,7 +246,6 @@ const WordGuessGame = () => {
           ))}
         </div>
 
-        {/* 답변 영역 (자유 순서 매칭) */}
         <div className="min-h-[180px] bg-indigo-50 rounded-2xl flex flex-col justify-center items-center p-6 mb-8 border-2 border-dashed border-indigo-200">
           {selectedLetters.length === 0 ? (
             <span className="text-indigo-200 text-sm font-bold uppercase tracking-widest text-center">Touch Letters to Answer</span>
@@ -255,9 +260,15 @@ const WordGuessGame = () => {
             setScrambledLetters(prev => [...prev, ...selectedLetters]);
             setSelectedLetters([]);
             setMessage('');
-          }} className="flex-1 bg-gray-50 py-4 rounded-2xl font-bold text-gray-400 hover:bg-gray-100 transition-colors">RESET</button>
-          <button onClick={checkGuess} disabled={selectedLetters.length === 0 || isCorrect} className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:bg-indigo-700 transition-all">
-            {isCorrect ? 'PERFECT!' : 'CHECK'}
+          }} className="flex-1 bg-gray-50 py-4 rounded-2xl font-bold text-gray-400 hover:bg-gray-100 transition-colors uppercase">Reset</button>
+          
+          {/* CHECK 버튼 대신 BACKSPACE(지우기) 버튼 추가 */}
+          <button 
+            onClick={removeLastLetter} 
+            disabled={selectedLetters.length === 0 || isCorrect} 
+            className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg active:bg-indigo-700 disabled:bg-indigo-300 transition-all flex items-center justify-center gap-2 uppercase"
+          >
+            {isCorrect ? 'GOOD!' : <><Delete size={20} /> Backspace</>}
           </button>
         </div>
         
