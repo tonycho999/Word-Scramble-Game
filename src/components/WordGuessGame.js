@@ -20,8 +20,8 @@ const WordGuessGame = () => {
   const [isCorrect, setIsCorrect] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
-  // 현재 정답 단어들을 배열로 분리 (예: ["apple", "juice"])
-  const targetWords = currentWord.toLowerCase().split(/\s+/);
+  // 현재 정답 단어들을 배열로 분리
+  const targetWords = currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0);
 
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
@@ -77,7 +77,6 @@ const WordGuessGame = () => {
     }
   };
 
-  // 입력된 글자들을 단어별로 묶어서 렌더링하는 로직
   const renderSelectedWords = () => {
     let currentIdx = 0;
     return targetWords.map((word, wordIdx) => {
@@ -89,8 +88,8 @@ const WordGuessGame = () => {
       const isWordCorrect = isWordComplete && wordLetters.map(l => l.char).join('').toLowerCase() === word;
 
       return (
-        <div key={wordIdx} className="flex flex-col items-center mb-4 last:mb-0">
-          <div className="flex gap-2 items-center">
+        <div key={wordIdx} className="flex flex-col items-center mb-6 last:mb-0">
+          <div className="flex gap-2 items-center flex-wrap justify-center">
             {wordLetters.map((l) => (
               <span 
                 key={l.id} 
@@ -105,11 +104,9 @@ const WordGuessGame = () => {
                 {l.char.toUpperCase()}
               </span>
             ))}
-            {/* 단어 완성 시 체크 표시 */}
             {isWordCorrect && <span className="text-green-500 font-bold ml-2">✓</span>}
           </div>
-          {/* 단어 구분선 (시각적 피드백) */}
-          <div className={`h-1 rounded-full mt-1 transition-all duration-500 ${isWordCorrect ? 'bg-green-400 w-full' : 'bg-indigo-100 w-12'}`} />
+          <div className={`h-1.5 rounded-full mt-2 transition-all duration-500 ${isWordCorrect ? 'bg-green-400 w-full' : 'bg-indigo-100 w-16'}`} />
         </div>
       );
     });
@@ -128,12 +125,25 @@ const WordGuessGame = () => {
         </div>
 
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-black mb-4 uppercase">{category}</h2>
-          <div className="flex justify-center gap-3">
-            <button onClick={() => setShowHint(!showHint)} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold"><Lightbulb size={14} className="inline mr-1"/>HINT</button>
-            <button onClick={() => setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5))} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold"><RotateCcw size={14} className="inline mr-1"/>SHUFFLE</button>
+          {/* 단어 수 표시 복구 및 디자인 강화 */}
+          <div className="flex flex-col items-center gap-1 mb-4">
+            <h2 className="text-2xl font-black uppercase tracking-tighter leading-none">{category}</h2>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[11px] font-black text-white bg-indigo-500 px-3 py-1 rounded-full shadow-sm">
+                {targetWords.length} {targetWords.length > 1 ? 'WORDS' : 'WORD'}
+              </span>
+            </div>
           </div>
-          {showHint && <div className="mt-3 text-xs text-indigo-500 font-bold">Starts with: {currentWord[0]?.toUpperCase()}</div>}
+
+          <div className="flex justify-center gap-3">
+            <button onClick={() => setShowHint(!showHint)} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold hover:bg-gray-100 transition-colors">
+              <Lightbulb size={14} className="inline mr-1"/>HINT
+            </button>
+            <button onClick={() => setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5))} className="px-4 py-2 bg-gray-50 border rounded-full text-xs font-bold hover:bg-gray-100 transition-colors">
+              <RotateCcw size={14} className="inline mr-1"/>SHUFFLE
+            </button>
+          </div>
+          {showHint && <div className="mt-3 text-xs text-indigo-500 font-bold animate-bounce">Starts with: {currentWord[0]?.toUpperCase()}</div>}
         </div>
 
         {/* 알파벳 선택 영역 */}
@@ -143,18 +153,18 @@ const WordGuessGame = () => {
               setScrambledLetters(prev => prev.filter(i => i.id !== l.id));
               setSelectedLetters(prev => [...prev, l]);
               setMessage('');
-            }} className="w-11 h-11 bg-white border-2 border-gray-100 rounded-xl font-bold text-lg shadow-sm active:scale-90 transition-all">
+            }} className="w-11 h-11 bg-white border-2 border-gray-100 rounded-xl font-bold text-lg shadow-sm hover:border-indigo-400 active:scale-95 transition-all">
               {l.char.toUpperCase()}
             </button>
           ))}
         </div>
 
-        {/* 답변 영역: 단어별 줄바꿈 및 성공 표시 */}
-        <div className="min-h-[150px] bg-indigo-50 rounded-2xl flex flex-col justify-center items-center p-6 mb-8 border-2 border-dashed border-indigo-200">
+        {/* 답변 영역: 단어별 줄바꿈 */}
+        <div className="min-h-[160px] bg-indigo-50 rounded-2xl flex flex-col justify-center items-center p-6 mb-8 border-2 border-dashed border-indigo-200">
           {selectedLetters.length === 0 ? (
             <span className="text-indigo-200 text-sm font-bold uppercase tracking-widest">Select Letters</span>
           ) : (
-            renderSelectedWords()
+            <div className="w-full">{renderSelectedWords()}</div>
           )}
         </div>
 
@@ -163,13 +173,13 @@ const WordGuessGame = () => {
             setScrambledLetters(prev => [...prev, ...selectedLetters]);
             setSelectedLetters([]);
             setMessage('');
-          }} className="flex-1 bg-gray-100 py-4 rounded-2xl font-bold text-gray-400">RESET</button>
-          <button onClick={checkGuess} disabled={selectedLetters.length === 0 || isCorrect} className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg disabled:bg-green-500 transition-colors">
+          }} className="flex-1 bg-gray-50 py-4 rounded-2xl font-bold text-gray-400 hover:bg-gray-100 transition-colors">RESET</button>
+          <button onClick={checkGuess} disabled={selectedLetters.length === 0 || isCorrect} className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg disabled:bg-green-500 transition-all hover:bg-indigo-700">
             {isCorrect ? 'PERFECT!' : 'CHECK'}
           </button>
         </div>
         
-        {message && <div className="mt-4 text-center font-black text-indigo-600 tracking-widest">{message}</div>}
+        {message && <div className="mt-4 text-center font-black text-indigo-600 tracking-widest uppercase animate-pulse">{message}</div>}
       </div>
     </div>
   );
