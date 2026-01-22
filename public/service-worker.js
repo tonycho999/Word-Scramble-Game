@@ -1,14 +1,23 @@
-const CACHE_NAME = 'word-game-v1';
-const urlsToCache = ['/', '/index.html'];
+const CACHE_NAME = 'word-game-v2'; // 버전을 올려서 강제 업데이트
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // 즉시 활성화
+});
+
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) return caches.delete(key);
+        })
+      );
+    })
   );
 });
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => response || fetch(event.request))
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });
