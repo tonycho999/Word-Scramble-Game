@@ -1,4 +1,277 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// 빌드 에러의 원인이었던 'Download'를 제거했습니다.
+import { Trophy, Lightbulb, RotateCcw, Sparkles, X, Delete, ArrowRight } from 'lucide-react';
+import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
+
+const WordGuessGame = () => {
+  // --- 상태 관리 및 로컬 저장소 동기화 ---
+  const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
+  const [score, setScore] = useState(() => {
+    const savedScore = localStorage.getItem('word-game-score');
+    return savedScore !== null ? Number(savedScore) : 300;
+  });
+  const [usedWordIds, setUsedWordIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('word-game-used-ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [currentWord, setCurrentWord] = useState(() => localStorage.getItem('word-game-current-word') || '');
+  const [category, setCategory] = useState(() => localStorage.getItem('word-game-category') || '');
+  const [scrambledLetters, setScrambledLetters] = useState(() => {
+    try {
+      const saved = localStorage.getItem('word-game-scrambled');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [selectedLetters, setSelectedLetters] = useState([]);
+  const [message, setMessage] = useState('');
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(() => !localStorage.getItem('install-guide-seen'));
+
+  const targetWords = useMemo(() => 
+    currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0)
+  , [currentWord]);
+
+  useEffect(() => {
+    localStorage.setItem('word-game-level', level);
+    localStorage.setItem('word-game-score', score);
+    localStorage.setItem('word-game-used-ids', JSON.stringify(usedWordIds));
+    localStorage.setItem('word-game-current-word', currentWord);
+    localStorage.setItem('word-game-category', category);
+    localStorage.setItem('word-game-scrambled', JSON.stringify(scrambledLetters));
+  }, [level, score, usedWordIds, currentWord, category, scrambledLetters]);
+
+  // --- 단어 로드 로직 ---
+  const loadNewWord = useCallback(() => {
+    let db = level <= 19 ? wordDatabase : level <= 99 ? twoWordDatabase : threeWordDatabase;
+    const dbPrefix = level <= 19 ? 'LV1' : level <= 99 ? 'LV2' : 'LV3';
+
+    const availableWords = db.filter(item => {
+      const wordId = `${dbPrefix}-${item.word}-${item.category}`;
+      return !usedWordIds.includes(wordId);
+    });
+
+    let selectedWordObj = availableWords.length > 0 
+      ? availableWords[Math.floor(Math.random() * availableWords.length)]
+      : db[Math.floor(Math.random() * db.length)];
+
+    const wordId = `${dbPrefix}-${selectedWordObj.word}-${selectedWordObj.category}`;
+
+    const chars = selectedWordObj.word.replace(/\s/g, '').split('').map((char, i) => ({ 
+      char, 
+      id: `letter-${Date.now()}-${i}-${Math.random()}` 
+    }));
+
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+
+    setUsedWordIds(prev => [...prev, wordId]);
+    setCurrentWord(selectedWordObj.word);
+    setCategory(selectedWordObj.category);
+    setScrambledLetters(chars);
+    setSelectedLetters([]);
+    setMessage('');
+    setIsCorrect(false);
+    setShowHint(false);
+  }, [level, usedWordIds]);
+
+  useEffect(() => {
+    if (!currentWord) loadNewWord();
+  }, [currentWord, loadNewWord]);
+
+  // --- 정답 판정 ---
+  useEffect(() => {
+    if (selectedLetters.length === 0 || !currentWord || isCorrect) return;
+    const userAll = selectedLetters.map(l => l.char).join('').toLowerCase();
+    const correctAll = currentWord.replace(/\s/g, '').toLowerCase();
+
+    if (userAll.length === correctAll.length && userAll === correctAll) {
+      setIsCorrect(true);
+      setMessage('EXCELLENT! 🎉');
+    }
+  }, [selectedLetters, currentWord, isCorrect]);
+
+  const goToNextLevel = () => {
+    const earnedScore = targetWords.length * 10;
+    setScore(s => s + earnedScore);
+    setLevel(l => l + 1);
+    setCurrentWord('');
+    setIsCorrect(false);
+  };
+
+  const removeLastLetter = () => {
+    if (selectedLetters.length === 0 || isCorrect) return;
+    const lastLetter = selectedLetters[selectedLetters.length - 1];
+    setSelectedLetters(prev => prev.slice(0, -1));
+    setScrambledLetters(prev => [...prev, lastLetter]);
+    setMessage('');
+  };
+
+  const renderFreeOrderWords = () => {
+    let tempSelected = [...selectedLetters];
+    let matchedWords = Array(targetWords.length).fill(null);
+    let usedInMatch = new Set();
+
+    targetWords.forEach((target, wordIdx) => {
+      for (let i = 0; i <= tempSelected.length - target.length; i++) {
+        const slice = tempSelected.slice(i, i + target.length);
+        const sliceText = slice.map(l => l.char).join('').toLowerCase();
+        if (sliceText === target) {
+          matchedWords[wordIdx] = { letters: slice, isMatch: true };
+          slice.forEach(l => usedInMatch.add(l.id));
+          break;
+        }
+      }
+    });
+
+    let unmatchedLetters = selectedLetters.filter(l => !usedInMatch.has(l.id));
+    
+    return targetWords.map((target, idx) => {
+      const isWordCorrect = matchedWords[idx] !== null;
+      const displayLetters = isWordCorrect ? matchedWords[idx].letters : unmatchedLetters.splice(0, target.length);
+
+      return (
+        <div key={`row-${idx}`} className="flex flex-col items-center mb-6 last:mb-0 w-full">
+          <div className="flex gap-2 items-center flex-wrap justify-center min-h-[48px]">
+            {displayLetters.map((l) => (
+              <span key={l.id} className={`font-black ${isWordCorrect ? 'text-green-500 scale-110 transition-transform' : 'text-indigo-600'} ${target.length > 8 ? 'text-3xl' : 'text-4xl'}`}>
+                {l.char.toUpperCase()}
+              </span>
+            ))}
+          </div>
+          <div className={`h-1.5 rounded-full mt-2 transition-all duration-700 ${isWordCorrect ? 'bg-green-400 w-full' : 'bg-indigo-100 w-24'}`} />
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-indigo-600 flex flex-col items-center justify-center p-4">
+      
+      {/* 설치 가이드 모달 */}
+      {showInstallGuide && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative text-center">
+            <button onClick={() => setShowInstallGuide(false)} className="absolute top-5 right-5 text-gray-400"><X size={28} /></button>
+            <h3 className="text-2xl font-black mb-4 text-indigo-900 uppercase">App Installation</h3>
+            <p className="text-sm text-gray-500 mb-8 font-medium leading-relaxed">홈 화면에 추가하여 더 빠르게 게임을 시작하세요!</p>
+            <button 
+              onClick={() => { localStorage.setItem('install-guide-seen', 'true'); setShowInstallGuide(false); }} 
+              className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg"
+            >
+              확인했습니다
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 메인 게임 카드 */}
+      <div className="bg-white p-6 sm:p-10 rounded-[3rem] shadow-2xl w-full max-w-md flex flex-col items-stretch transition-all">
+        
+        {/* 상단바 */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-2 font-black text-indigo-600 uppercase text-lg">
+            <Sparkles size={20} className="text-yellow-400" /> Level {level}
+          </div>
+          <div className="flex items-center gap-2 font-black text-gray-700 text-lg">
+            <Trophy size={22} className="text-yellow-500" /> {score}
+          </div>
+        </div>
+
+        {/* 문제 정보 */}
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-black uppercase mb-2 text-gray-900 leading-none">{category}</h2>
+          <span className="text-[12px] font-black text-white bg-indigo-500 px-5 py-1.5 rounded-full inline-block mb-6 shadow-md">
+            {targetWords.length} {targetWords.length > 1 ? 'WORDS' : 'WORD'}
+          </span>
+          <div className="flex justify-center gap-4">
+            <button onClick={() => !showHint && score >= 100 && (setScore(s => s - 100), setShowHint(true))} className="px-6 py-3 bg-gray-50 border-2 border-gray-100 rounded-full text-xs font-black shadow-sm transition-transform active:scale-95">
+              <Lightbulb size={16} className={`inline mr-2 ${showHint ? 'text-yellow-500' : 'text-gray-400'}`}/>
+              {showHint ? 'HINT ON' : 'HINT (-100)'}
+            </button>
+            <button onClick={() => !isCorrect && setScrambledLetters(prev => [...prev].sort(() => Math.random() - 0.5))} className="px-6 py-3 bg-gray-50 border-2 border-gray-100 rounded-full text-xs font-black shadow-sm transition-transform active:scale-95">
+              <RotateCcw size={16} className="inline mr-2 text-gray-400"/>SHUFFLE
+            </button>
+          </div>
+          {showHint && (
+            <div className="mt-5 p-4 bg-yellow-50 rounded-2xl border border-yellow-100 text-xs text-indigo-700 font-bold animate-pulse">
+              HINT: {targetWords.map(w => w[0].toUpperCase() + "...").join(", ")}
+            </div>
+          )}
+        </div>
+
+        {/* 글자 버튼 영역 */}
+        <div className="flex flex-wrap gap-3 justify-center mb-10 min-h-[64px]">
+          {scrambledLetters.map(l => (
+            <button 
+              key={l.id} 
+              onClick={() => {
+                if (isCorrect) return;
+                setScrambledLetters(prev => prev.filter(i => i.id !== l.id));
+                setSelectedLetters(prev => [...prev, l]);
+                setMessage('');
+              }} 
+              className="w-12 h-12 sm:w-14 sm:h-14 bg-white border-2 border-gray-100 rounded-2xl font-black text-xl shadow-md active:scale-90 transition-all hover:border-indigo-400"
+            >
+              {l.char.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {/* 답변 영역 */}
+        <div className="min-h-[220px] bg-indigo-50 rounded-[2.5rem] flex flex-col justify-center items-center p-8 mb-10 border-2 border-dashed border-indigo-100 shadow-inner">
+          {selectedLetters.length === 0 ? (
+            <span className="text-indigo-200 text-sm font-black uppercase tracking-[0.2em] text-center">Touch Letters</span>
+          ) : (
+            <div className="w-full">{renderFreeOrderWords()}</div>
+          )}
+        </div>
+
+        {/* 하단 제어 버튼 */}
+        <div className="min-h-[80px]">
+          {isCorrect ? (
+            <button 
+              onClick={goToNextLevel} 
+              className="w-full bg-green-500 text-white py-6 rounded-[2rem] font-black text-2xl shadow-xl flex items-center justify-center gap-3 animate-bounce"
+            >
+              NEXT LEVEL <ArrowRight size={32} />
+            </button>
+          ) : (
+            <div className="flex gap-4">
+              <button 
+                onClick={() => {
+                  setScrambledLetters(prev => [...prev, ...selectedLetters]);
+                  setSelectedLetters([]);
+                  setMessage('');
+                }} 
+                className="flex-1 bg-gray-50 py-6 rounded-[2rem] font-black text-gray-400 uppercase text-sm border-2 border-gray-100"
+              >
+                Reset
+              </button>
+              <button 
+                onClick={removeLastLetter} 
+                disabled={selectedLetters.length === 0} 
+                className="flex-[2] bg-indigo-600 text-white py-6 rounded-[2rem] font-black text-lg sm:text-2xl shadow-xl active:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center gap-3"
+              >
+                <Delete size={28} /> Backspace
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {message && <div className="mt-8 text-center font-black text-indigo-600 tracking-[0.3em] uppercase text-sm animate-pulse">{message}</div>}
+      </div>
+    </div>
+  );
+};
+
+export default WordGuessGame;import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // 에러 원인이었던 Download 제거
 import { Trophy, Lightbulb, RotateCcw, Sparkles, X, Delete, ArrowRight } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
