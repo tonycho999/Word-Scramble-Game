@@ -10,5 +10,5 @@ ReactDOM.render(
   document.getElementById('root')
 );
 
-// unregister()에서 register()로 변경
+// 반드시 register()로 변경해야 설치 버튼이 활성화됩니다.
 serviceWorkerRegistration.register();
