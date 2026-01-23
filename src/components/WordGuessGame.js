@@ -3,7 +3,6 @@ import { Trophy, Lightbulb, RotateCcw, Sparkles, X, Delete, ArrowRight } from 'l
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
 const WordGuessGame = () => {
-  // --- 상태 관리 ---
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
   const [score, setScore] = useState(() => {
     const savedScore = localStorage.getItem('word-game-score');
@@ -34,7 +33,6 @@ const WordGuessGame = () => {
     currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0)
   , [currentWord]);
 
-  // --- 데이터 저장 ---
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
     localStorage.setItem('word-game-score', score);
@@ -44,7 +42,6 @@ const WordGuessGame = () => {
     localStorage.setItem('word-game-scrambled', JSON.stringify(scrambledLetters));
   }, [level, score, usedWordIds, currentWord, category, scrambledLetters]);
 
-  // --- 단어 로드 로직 ---
   const loadNewWord = useCallback(() => {
     let db = level <= 19 ? wordDatabase : level <= 99 ? twoWordDatabase : threeWordDatabase;
     const dbPrefix = level <= 19 ? 'LV1' : level <= 99 ? 'LV2' : 'LV3';
@@ -83,7 +80,6 @@ const WordGuessGame = () => {
     if (!currentWord) loadNewWord();
   }, [currentWord, loadNewWord]);
 
-  // --- 정답 체크 ---
   useEffect(() => {
     if (selectedLetters.length === 0 || !currentWord || isCorrect) return;
     const userAll = selectedLetters.map(l => l.char).join('').toLowerCase();
@@ -148,11 +144,12 @@ const WordGuessGame = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-indigo-600 flex flex-col items-center justify-center p-4">
-      {/* 설치 가이드 모달 */}
+    // 배경색과 정중앙 배치를 위해 인라인 스타일 일부 추가 (CSS 로드 실패 대비)
+    <div className="w-full min-h-screen bg-indigo-600 flex flex-col items-center justify-center p-4" style={{ backgroundColor: '#4f46e5' }}>
+      
       {showInstallGuide && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
-          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative text-center border-t-8 border-indigo-500">
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl relative text-center">
             <button onClick={() => setShowInstallGuide(false)} className="absolute top-5 right-5 text-gray-400"><X size={28} /></button>
             <h3 className="text-2xl font-black mb-4 text-indigo-900 uppercase">App Installation</h3>
             <p className="text-sm text-gray-500 mb-8 font-medium leading-relaxed">홈 화면에 추가하여 더 빠르게 게임을 시작하세요!</p>
@@ -166,8 +163,8 @@ const WordGuessGame = () => {
         </div>
       )}
 
-      {/* 메인 게임 카드 */}
-      <div className="bg-white p-6 sm:p-10 rounded-[3rem] shadow-2xl w-full max-w-md flex flex-col items-stretch mx-auto">
+      {/* 메인 카드 중앙 정렬 보강 */}
+      <div className="bg-white p-6 sm:p-10 rounded-[3rem] shadow-2xl w-full max-w-md flex flex-col items-stretch mx-auto" style={{ backgroundColor: '#ffffff', margin: 'auto' }}>
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-2 font-black text-indigo-600 uppercase text-lg">
             <Sparkles size={20} className="text-yellow-400" /> Level {level}
@@ -191,11 +188,6 @@ const WordGuessGame = () => {
               <RotateCcw size={16} className="inline mr-2 text-gray-400"/>SHUFFLE
             </button>
           </div>
-          {showHint && (
-            <div className="mt-5 p-4 bg-yellow-50 rounded-2xl border border-yellow-100 text-xs text-indigo-700 font-bold">
-              HINT: {targetWords.map(w => w[0].toUpperCase() + "...").join(", ")}
-            </div>
-          )}
         </div>
 
         <div className="flex flex-wrap gap-3 justify-center mb-10 min-h-[64px]">
@@ -204,7 +196,7 @@ const WordGuessGame = () => {
               if (isCorrect) return;
               setScrambledLetters(prev => prev.filter(i => i.id !== l.id));
               setSelectedLetters(prev => [...prev, l]);
-            }} className="w-12 h-12 sm:w-14 sm:h-14 bg-white border-2 border-gray-100 rounded-2xl font-black text-xl shadow-md active:scale-90 transition-all">
+            }} className="w-12 h-12 sm:w-14 sm:h-14 bg-white border-2 border-gray-100 rounded-2xl font-black text-xl shadow-md active:scale-90 transition-all hover:border-indigo-400">
               {l.char.toUpperCase()}
             </button>
           ))}
