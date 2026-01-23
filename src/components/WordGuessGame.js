@@ -59,6 +59,7 @@ const WordGuessGame = () => {
     const chars = sel.word.replace(/\s/g, '').split('').map((char, i) => ({ 
       char, id: `l-${Date.now()}-${i}-${Math.random()}` 
     })).sort(() => Math.random() - 0.5);
+    
     setUsedWordIds(p => [...p, `${prefix}-${sel.word}`]);
     setCurrentWord(sel.word);
     setCategory(sel.category);
@@ -71,29 +72,33 @@ const WordGuessGame = () => {
 
   useEffect(() => { if (!currentWord) loadNewWord(); }, [currentWord, loadNewWord]);
 
-  // 실시간 단어 매칭 및 렌더링 함수
-  const renderFreeOrderWords = () => {
+  // 단어 매칭 및 전체 정답 여부 계산
+  const { renderedComponents, allMatched } = useMemo(() => {
     let tempSelected = [...selectedLetters];
-    let matchedWords = Array(targetWords.length).fill(null);
+    let matchedCount = 0;
     let usedInMatch = new Set();
 
-    targetWords.forEach((target, wordIdx) => {
+    // 각 타겟 단어가 선택된 글자들 중에 포함되어 있는지 검사
+    const wordResults = targetWords.map((target) => {
+      let matchInfo = null;
       for (let i = 0; i <= tempSelected.length - target.length; i++) {
         const slice = tempSelected.slice(i, i + target.length);
         const sliceText = slice.map(l => l.char).join('').toLowerCase();
         if (sliceText === target) {
-          matchedWords[wordIdx] = { letters: slice, isMatch: true };
+          matchInfo = { letters: slice, isMatch: true };
           slice.forEach(l => usedInMatch.add(l.id));
+          matchedCount++;
           break;
         }
       }
+      return { target, matchInfo };
     });
 
     let unmatchedLetters = selectedLetters.filter(l => !usedInMatch.has(l.id));
-    
-    return targetWords.map((target, idx) => {
-      const isWordMatch = matchedWords[idx] !== null;
-      const displayLetters = isWordMatch ? matchedWords[idx].letters : unmatchedLetters.splice(0, target.length);
+
+    const components = wordResults.map((res, idx) => {
+      const isWordMatch = res.matchInfo !== null;
+      const displayLetters = isWordMatch ? res.matchInfo.letters : unmatchedLetters.splice(0, res.target.length);
 
       return (
         <div key={`word-${idx}`} className="flex flex-col items-center mb-4 last:mb-0">
@@ -109,17 +114,20 @@ const WordGuessGame = () => {
         </div>
       );
     });
-  };
 
+    return { 
+      renderedComponents: components, 
+      allMatched: matchedCount === targetWords.length && selectedLetters.length === currentWord.replace(/\s/g, '').length 
+    };
+  }, [selectedLetters, targetWords, currentWord]);
+
+  // 실시간으로 정답 상태 업데이트
   useEffect(() => {
-    if (selectedLetters.length === 0 || !currentWord || isCorrect) return;
-    const user = selectedLetters.map(l => l.char).join('').toLowerCase();
-    const correct = currentWord.replace(/\s/g, '').toLowerCase();
-    if (user === correct) {
+    if (allMatched && !isCorrect) {
       setIsCorrect(true);
       setMessage('EXCELLENT! 🎉');
     }
-  }, [selectedLetters, currentWord, isCorrect]);
+  }, [allMatched, isCorrect]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-indigo-600 p-4 font-sans">
@@ -137,7 +145,7 @@ const WordGuessGame = () => {
         </div>
 
         <div className="flex gap-3 mb-8">
-          <button onClick={() => { if(score >= 100 && !showHint) { setScore(s => s - 100); setShowHint(true); } }} disabled={score < 100 || showHint || isCorrect} className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs transition-all ${showHint ? 'bg-yellow-100 text-yellow-600' : 'bg-gray-100 text-gray-500 hover:bg-yellow-50'}`}><Lightbulb size={14}/> HINT</button>
+          <button onClick={() => { if(score >= 100 && !showHint) { setScore(s => s - 100); setShowHint(true); } }} disabled={score < 100 || showHint || isCorrect} className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs bg-gray-100 text-gray-500 hover:bg-yellow-50"><Lightbulb size={14}/> HINT</button>
           <button onClick={() => !isCorrect && setScrambledLetters(p => [...p].sort(() => Math.random() - 0.5))} disabled={isCorrect} className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 text-gray-500 font-bold text-xs"><RotateCcw size={14}/> SHUFFLE</button>
         </div>
 
@@ -149,17 +157,17 @@ const WordGuessGame = () => {
 
         <div className={`w-full min-h-[160px] rounded-[2rem] flex flex-col justify-center items-center p-6 mb-8 border-2 border-dashed transition-colors ${isCorrect ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
           {selectedLetters.length === 0 ? <span className="text-gray-300 font-bold uppercase text-xs">Tap Letters</span> : 
-            <div className="w-full">{renderFreeOrderWords()}</div>
+            <div className="w-full">{renderedComponents}</div>
           }
         </div>
 
         <div className="w-full">
           {isCorrect ? (
-            <button onClick={() => { setScore(s => s + (targetWords.length * 10)); setLevel(l => l + 1); setCurrentWord(''); }} className="w-full bg-green-500 text-white py-5 rounded-[2rem] font-black text-2xl shadow-lg animate-bounce flex items-center justify-center gap-2">NEXT LEVEL <ArrowRight size={28}/></button>
+            <button onClick={() => { setScore(s => s + (targetWords.length * 10)); setLevel(l => l + 1); setCurrentWord(''); }} className="w-full bg-green-500 text-white py-5 rounded-[2rem] font-black text-2xl shadow-lg animate-bounce flex items-center justify-center gap-2 transition-all">NEXT LEVEL <ArrowRight size={28}/></button>
           ) : (
             <div className="flex gap-3 w-full">
-              <button onClick={() => { setScrambledLetters(p => [...p, ...selectedLetters]); setSelectedLetters([]); setMessage(''); }} className="flex-1 bg-gray-50 py-5 rounded-[1.5rem] font-black text-gray-400 text-sm border-2 border-gray-100">RESET</button>
-              <button onClick={() => { if(selectedLetters.length > 0) { const last = selectedLetters[selectedLetters.length-1]; setSelectedLetters(p => p.slice(0, -1)); setScrambledLetters(p => [...p, last]); setMessage(''); } }} disabled={selectedLetters.length === 0} className="flex-[2] bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black text-xl flex items-center justify-center gap-2"><Delete size={22}/> BACKSPACE</button>
+              <button onClick={() => { setScrambledLetters(p => [...p, ...selectedLetters]); setSelectedLetters([]); setMessage(''); }} className="flex-1 bg-gray-100 py-5 rounded-[1.5rem] font-black text-gray-400 text-sm border-2 border-gray-100">RESET</button>
+              <button onClick={() => { if(selectedLetters.length > 0) { const last = selectedLetters[selectedLetters.length-1]; setSelectedLetters(p => p.slice(0, -1)); setScrambledLetters(p => [...p, last]); setMessage(''); } }} disabled={selectedLetters.length === 0} className="flex-[2] bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black text-xl flex items-center justify-center gap-2 shadow-xl active:bg-indigo-700 transition-all"><Delete size={22}/> BACKSPACE</button>
             </div>
           )}
         </div>
