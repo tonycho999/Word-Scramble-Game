@@ -2,12 +2,16 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
+// 501레벨 이후를 위한 4단어 예시 데이터 (실제 데이터 파일에 추가 권장)
+const fourWordDatabase = [
+  { word: 'BIG RED FIRE TRUCK', category: 'VEHICLES', type: 'Phrase' },
+  { word: 'DEEP BLUE OCEAN WATER', category: 'NATURE', type: 'Phrase' },
+  { word: 'SPRING SUMMER FALL WINTER', category: 'SEASON', type: 'Normal' }
+];
+
 const WordGuessGame = () => {
-  // --- 1. 상태 및 Refs ---
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
   const [score, setScore] = useState(() => Number(localStorage.getItem('word-game-score')) || 300);
-  
-  // 사용한 단어 리스트를 로컬 스토리지에서 완벽히 로드
   const [usedWordIds, setUsedWordIds] = useState(() => {
     try {
       const saved = localStorage.getItem('word-game-used-ids');
@@ -39,7 +43,6 @@ const WordGuessGame = () => {
   const matchedWordsRef = useRef(new Set());
   const audioCtxRef = useRef(null);
 
-  // --- 2. 데이터 영구 저장 (usedWordIds 포함) ---
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
     localStorage.setItem('word-game-score', score);
@@ -52,12 +55,9 @@ const WordGuessGame = () => {
     localStorage.setItem('word-game-hint-level', hintLevel);
   }, [level, score, usedWordIds, currentWord, category, wordType, scrambledLetters, selectedLetters, hintLevel]);
 
-  // --- 3. 효과음 엔진 ---
   const playSound = useCallback(async (type) => {
     try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
       const ctx = audioCtxRef.current;
       if (ctx.state === 'suspended') await ctx.resume();
       const osc = ctx.createOscillator();
@@ -75,51 +75,61 @@ const WordGuessGame = () => {
         osc.start(); osc.stop(ctx.currentTime + 0.2);
       } else if (type === 'allSuccess') {
         [523, 659, 783, 1046].forEach((f, i) => {
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.connect(g); g.connect(ctx.destination);
-          o.frequency.value = f;
-          g.gain.setValueAtTime(0.1, ctx.currentTime + i*0.08);
-          g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i*0.08 + 0.3);
-          o.start(ctx.currentTime + i*0.08); o.stop(ctx.currentTime + 0.4);
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination); o.frequency.value = f;
+          g.gain.setValueAtTime(0.1, ctx.currentTime + i*0.08); o.start(ctx.currentTime + i*0.08); o.stop(ctx.currentTime + 0.4);
         });
       } else if (type === 'reward') {
         [440, 554, 659, 880, 1108].forEach((f, i) => {
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.connect(g); g.connect(ctx.destination);
-          o.frequency.value = f;
-          g.gain.setValueAtTime(0.05, ctx.currentTime + i*0.1);
-          g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i*0.1 + 0.3);
-          o.start(ctx.currentTime + i*0.1); o.stop(ctx.currentTime + i*0.1 + 0.3);
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination); o.frequency.value = f;
+          g.gain.setValueAtTime(0.05, ctx.currentTime + i*0.1); o.start(ctx.currentTime + i*0.1); o.stop(ctx.currentTime + i*0.1 + 0.3);
         });
       }
-    } catch (e) { console.warn('Audio failed', e); }
+    } catch (e) {}
   }, []);
 
-  // --- 4. 단어 로드 (중복 체크 강화 버전) ---
   const loadNewWord = useCallback(() => {
-    // 레벨에 따라 사용할 DB 결정
-    let db = level <= 5 ? wordDatabase : (level <= 15 ? twoWordDatabase : threeWordDatabase);
-    
-    // 사용하지 않은 단어들만 필터링
-    let available = db.filter(item => !usedWordIds.includes(item.word));
+    let dbPool = [];
+    let forceNormal = false;
+    const rand = Math.random() * 100;
 
-    // 만약 현재 난이도의 모든 단어를 다 썼다면 초기화 (또는 다른 DB 탐색)
-    if (available.length === 0) {
-      console.log("All words in this tier used. Resetting history for this tier.");
-      // 해당 난이도 단어들만 사용 기록에서 제거하거나, 전체 리셋
-      setUsedWordIds(prev => prev.filter(id => !db.map(d => d.word).includes(id)));
-      available = db;
+    // --- 레벨별 난이도 로직 적용 ---
+    if (level <= 5) {
+      dbPool = wordDatabase; // 1단어
+    } else if (level <= 10) {
+      dbPool = (level % 2 === 0) ? twoWordDatabase : wordDatabase; // 2단어, 1단어 번갈아
+    } else if (level <= 20) {
+      dbPool = twoWordDatabase; forceNormal = true; // 2단어 Normal Only
+    } else if (level < 100) {
+      if (rand < 20) dbPool = wordDatabase;
+      else if (rand < 80) dbPool = twoWordDatabase;
+      else dbPool = threeWordDatabase;
+    } else if (level <= 105) {
+      dbPool = threeWordDatabase; forceNormal = true; // 3단어 Normal Only
+    } else if (level < 501) {
+      if (rand < 20) dbPool = wordDatabase;
+      else if (rand < 60) dbPool = twoWordDatabase;
+      else dbPool = threeWordDatabase;
+    } else {
+      // 501레벨 이상 무제한
+      if (rand < 10) dbPool = wordDatabase;
+      else if (rand < 30) dbPool = twoWordDatabase;
+      else if (rand < 90) dbPool = threeWordDatabase;
+      else dbPool = fourWordDatabase; // 4단어 10%
     }
 
-    const preferPhrase = Math.random() < 0.5;
-    let filtered = available.filter(i => (level <= 5 ? true : i.type === (preferPhrase ? 'Phrase' : 'Normal')));
+    let available = dbPool.filter(item => !usedWordIds.includes(item.word));
+    if (forceNormal) available = available.filter(i => i.type === 'Normal');
     
-    // 확률 필터링 후 없을 경우 다시 available에서 무작위 선택
-    if (filtered.length === 0) filtered = available;
+    // 사용 가능한 단어가 없으면 리셋
+    if (available.length === 0) {
+      setUsedWordIds(prev => prev.filter(id => !dbPool.map(d => d.word).includes(id)));
+      available = dbPool;
+      if (forceNormal) available = available.filter(i => i.type === 'Normal');
+    }
 
-    const sel = filtered[Math.floor(Math.random() * filtered.length)];
+    const sel = available[Math.floor(Math.random() * available.length)];
     const chars = sel.word.replace(/\s/g, '').split('').map((char, i) => ({ 
       char, id: `l-${Date.now()}-${i}-${Math.random()}` 
     })).sort(() => Math.random() - 0.5);
@@ -137,17 +147,12 @@ const WordGuessGame = () => {
 
   useEffect(() => { if (!currentWord) loadNewWord(); }, [currentWord, loadNewWord]);
 
-  // --- 5. 핸들러 ---
   const handleHint = () => {
     playSound('click');
     if (isCorrect || hintLevel >= 2) return;
-    if (hintLevel === 0 && score >= 100) {
-      setScore(s => s - 100); setHintLevel(1);
-    } else if (hintLevel === 1 && score >= 200) {
-      setScore(s => s - 200); setHintLevel(2);
-    } else {
-      setMessage("Not enough points!"); setTimeout(() => setMessage(''), 2000);
-    }
+    if (hintLevel === 0 && score >= 100) { setScore(s => s - 100); setHintLevel(1); }
+    else if (hintLevel === 1 && score >= 200) { setScore(s => s - 200); setHintLevel(2); }
+    else { setMessage("Not enough points!"); setTimeout(() => setMessage(''), 2000); }
   };
 
   const hintDisplay = useMemo(() => {
@@ -167,15 +172,12 @@ const WordGuessGame = () => {
     playSound('click');
     setIsAdLoading(true);
     setTimeout(() => {
-      setScore(s => s + 200);
-      setIsAdLoading(false);
-      playSound('reward');
-      setMessage('+200P Reward!');
+      setScore(s => s + 200); setIsAdLoading(false);
+      playSound('reward'); setMessage('+200P Reward!');
       setTimeout(() => setMessage(''), 2000);
     }, 2500);
   };
 
-  // --- 6. 실시간 로직 ---
   const targetWords = useMemo(() => currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0), [currentWord]);
   const wordCount = targetWords.length;
 
@@ -235,20 +237,17 @@ const WordGuessGame = () => {
 
   const processNextLevel = () => {
     playSound('click');
-    // 사용한 단어 목록에 현재 단어 추가
-    const newUsedWords = [...usedWordIds, currentWord];
-    setUsedWordIds(newUsedWords);
-    
+    setUsedWordIds(p => [...p, currentWord]);
     setScore(s => s + 50);
     setLevel(l => l + 1);
-    setCurrentWord(''); // 새로운 단어를 불러오도록 유도
+    setCurrentWord('');
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-indigo-600 p-4 font-sans relative text-gray-900">
       <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-md shadow-2xl flex flex-col items-center border-t-8 border-indigo-500 mx-auto">
         <div className="w-full flex justify-between items-center mb-4 font-black text-indigo-600">
-          <span className="text-lg uppercase tracking-tighter">LEVEL {level}</span>
+          <span className="text-lg uppercase">LEVEL {level}</span>
           <span className="flex items-center gap-1 text-gray-700"><Trophy size={18} className="text-yellow-500"/> {score}</span>
         </div>
 
