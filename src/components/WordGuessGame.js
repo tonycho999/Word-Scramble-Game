@@ -108,19 +108,15 @@ const WordGuessGame = () => {
 
   useEffect(() => { if (!currentWord) loadNewWord(); }, [currentWord, loadNewWord]);
 
-  // --- 5. 2단계 힌트 핸들러 ---
+  // --- 5. 2단계 힌트 핸들러 (미사용 변수 제거) ---
   const handleHint = () => {
     playSound('click');
     if (isCorrect) return;
 
-    const words = currentWord.split(/\s+/);
-
     if (hintLevel === 0 && score >= 100) {
-      // 1단계: 첫 글자만 공개
       setScore(s => s - 100);
       setHintLevel(1);
     } else if (hintLevel === 1 && score >= 200) {
-      // 2단계: 첫 글자와 끝 글자 공개
       setScore(s => s - 200);
       setHintLevel(2);
     } else {
@@ -130,7 +126,7 @@ const WordGuessGame = () => {
   };
 
   const hintDisplay = useMemo(() => {
-    if (hintLevel === 0) return null;
+    if (hintLevel === 0 || !currentWord) return null;
     const words = currentWord.split(/\s+/);
     
     const hintParts = words.map(word => {
