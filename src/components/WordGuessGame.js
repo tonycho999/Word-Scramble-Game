@@ -3,7 +3,7 @@ import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle, X } from 
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
 const WordGuessGame = () => {
-  // --- 1. 상태 관리 ---
+  // --- 1. 상태 관리 (State) ---
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
   const [score, setScore] = useState(() => Number(localStorage.getItem('word-game-score')) || 300);
   const [usedWordIds, setUsedWordIds] = useState(() => {
@@ -33,7 +33,7 @@ const WordGuessGame = () => {
     localStorage.setItem('word-game-used-ids', JSON.stringify(usedWordIds));
   }, [level, score, usedWordIds]);
 
-  // --- 3. 개선된 효과음 엔진 (모든 버튼 대응) ---
+  // --- 3. 효과음 엔진 ---
   const playSound = (type) => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -42,20 +42,15 @@ const WordGuessGame = () => {
       osc.connect(gain); gain.connect(ctx.destination);
 
       if (type === 'click') {
-        // 일반 버튼 클릭: 짧고 높은 탭 소리
         osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.05);
         gain.gain.setValueAtTime(0.1, ctx.currentTime);
         osc.start(); osc.stop(ctx.currentTime + 0.05);
       } else if (type === 'wordSuccess') {
-        // 단어 하나 완성: 중간 정도의 성취감 소리
-        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-        osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.1); // G5
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
         osc.start(); osc.stop(ctx.currentTime + 0.2);
       } else if (type === 'allSuccess') {
-        // 전체 정답: 화려한 화음
         [523, 659, 783, 1046].forEach((f, i) => {
           const o = ctx.createOscillator(); o.connect(ctx.destination);
           o.frequency.value = f; o.start(ctx.currentTime + i*0.08); o.stop(ctx.currentTime + 0.4);
@@ -64,7 +59,7 @@ const WordGuessGame = () => {
     } catch (e) { console.log('Audio error'); }
   };
 
-  // --- 4. 새 단어 로드 ---
+  // --- 4. 단어 로드 로직 ---
   const loadNewWord = useCallback(() => {
     let db = level <= 5 ? wordDatabase : (level <= 15 ? twoWordDatabase : threeWordDatabase);
     const preferPhrase = Math.random() < 0.5;
@@ -84,15 +79,18 @@ const WordGuessGame = () => {
     setIsCorrect(false);
     setHintLevel(0);
     setMessage('');
-    matchedWordsRef.current = new Set(); // 완성 기록 초기화
+    matchedWordsRef.current = new Set();
   }, [level, usedWordIds]);
 
   useEffect(() => { if (!currentWord) loadNewWord(); }, [currentWord, loadNewWord]);
 
-  // --- 5. 부분 정답 체크 및 렌더링 ---
+  // --- 5. 실시간 매칭 및 UI 계산 (wordCount 포함) ---
   const targetWords = useMemo(() => 
     currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0)
   , [currentWord]);
+
+  // 빌드 에러 해결: wordCount를 return 문 밖에서 미리 선언
+  const wordCount = targetWords.length;
 
   const { renderedComponents, allMatched } = useMemo(() => {
     let tempSelected = [...selectedLetters];
@@ -108,7 +106,6 @@ const WordGuessGame = () => {
           matchInfo = { letters: slice, isMatch: true };
           slice.forEach(l => usedInMatch.add(l.id));
           matchedCount++;
-          // 새로 완성된 단어라면 소리 재생
           if (!matchedWordsRef.current.has(idx)) {
             matchedWordsRef.current.add(idx);
             playSound('wordSuccess');
@@ -166,9 +163,9 @@ const WordGuessGame = () => {
 
   const handleHint = () => {
     playSound('click');
+    if (score < 100) return;
     setScore(s => s - 100);
     setHintLevel(1);
-    // 예전 방식: 힌트 사용 시 첫 글자를 자동으로 선택 목록에 추가
     const firstChar = currentWord.replace(/\s/g, '')[0].toUpperCase();
     const hintLetter = scrambledLetters.find(l => l.char.toUpperCase() === firstChar);
     if (hintLetter) {
@@ -183,13 +180,13 @@ const WordGuessGame = () => {
         <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center p-10 text-white text-center">
           <button onClick={processNextLevel} className="absolute top-10 right-10"><X size={40}/></button>
           <div className="text-xl font-bold mb-4 opacity-50 uppercase tracking-widest">Ad Break</div>
-          <button onClick={processNextLevel} className="bg-white text-black px-12 py-4 rounded-full font-black text-xl shadow-2xl">SKIP AD</button>
+          <button onClick={processNextLevel} className="bg-white text-black px-12 py-4 rounded-full font-black text-xl">SKIP AD</button>
         </div>
       )}
 
       <div className="bg-white rounded-[2.5rem] p-6 sm:p-10 w-full max-w-md shadow-2xl flex flex-col items-center border-t-8 border-indigo-500 mx-auto">
         <div className="w-full flex justify-between items-center mb-6 font-black text-indigo-600">
-          <span className="text-lg">LEVEL {level}</span>
+          <span className="text-lg uppercase">LV {level}</span>
           <span className="flex items-center gap-1 text-gray-700"><Trophy size={18} className="text-yellow-500"/> {score}</span>
         </div>
 
@@ -212,7 +209,7 @@ const WordGuessGame = () => {
           <button onClick={() => { playSound('click'); setScrambledLetters(p => [...p].sort(() => Math.random() - 0.5)); }} className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-full text-[10px] font-black flex items-center gap-1 uppercase active:scale-95">
             <RotateCcw size={12}/> Shuffle
           </button>
-          <button onClick={() => { playSound('click'); setIsAdLoading(true); setTimeout(() => { setScore(s => s + 200); setIsAdLoading(false); playSound('allSuccess'); }, 3000); }} className="px-4 py-2 bg-amber-400 text-white rounded-full text-[10px] font-black flex items-center gap-1 active:scale-95 shadow-md">
+          <button onClick={() => { playSound('click'); setIsAdLoading(true); setMessage('Loading Ad...'); setTimeout(() => { setScore(s => s + 200); setIsAdLoading(false); playSound('allSuccess'); setMessage('200P Reward! 🎁'); setTimeout(()=>setMessage(''), 2000); }, 3000); }} className="px-4 py-2 bg-amber-400 text-white rounded-full text-[10px] font-black flex items-center gap-1 active:scale-95 shadow-md">
             <PlayCircle size={12}/> {isAdLoading ? '...' : '+200P'}
           </button>
         </div>
