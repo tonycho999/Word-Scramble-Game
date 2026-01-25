@@ -30,7 +30,7 @@ const WordGuessGame = () => {
 
   const [isCorrect, setIsCorrect] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
-  const [mistakeIndex, setMistakeIndex] = useState(-1);
+  const [mistakeLetterId, setMistakeLetterId] = useState(null);
   const [message, setMessage] = useState('');
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -186,7 +186,13 @@ const WordGuessGame = () => {
   const handleHint = () => {
     playSound('click');
     if (isCorrect || hintsUsed >= 5) return;
+    if (score < 100) {
+      setMessage("Not enough points!");
+      setTimeout(() => setMessage(''), 2000);
+      return;
+    }
 
+    setScore(s => s - 100);
     setHintsUsed(h => h + 1);
 
     const solution = currentWord.replace(/\s/g, '');
@@ -201,15 +207,17 @@ const WordGuessGame = () => {
     }
 
     if (firstMistakeIndex !== -1) {
-      setMistakeIndex(firstMistakeIndex);
-      setTimeout(() => setMistakeIndex(-1), 500); // Shake for 0.5s
+      const mistakeId = selectedLetters[firstMistakeIndex].id;
+      setMistakeLetterId(mistakeId);
+      setTimeout(() => setMistakeLetterId(null), 500); // Shake for 0.5s
     } else {
       // Correct so far, so add the next letter
       if (currentGuess.length < solution.length) {
         const nextLetter = solution[currentGuess.length].toUpperCase();
         const letterInScrambled = scrambledLetters.find(
-          l => l.char.toUpperCase() === nextLetter &&
-               !selectedLetters.find(s => s.id === l.id)
+          l =>
+            l.char.toUpperCase() === nextLetter &&
+            !selectedLetters.some(s => s.id === l.id)
         );
         if (letterInScrambled) {
           setSelectedLetters(p => [...p, letterInScrambled]);
@@ -277,7 +285,7 @@ const WordGuessGame = () => {
                 key={l.id}
                 className={`text-2xl font-black transition-all ${
                   isWordMatch ? 'text-green-500' : 'text-indigo-600'
-                } ${mistakeIndex === letterIdx ? 'shake' : ''}`}
+                } ${mistakeLetterId === l.id ? 'shake' : ''}`}
               >
                 {l.char.toUpperCase()}
               </span>
@@ -293,7 +301,7 @@ const WordGuessGame = () => {
       renderedComponents: components, 
       allMatched: matchedCount === targetWords.length && selectedLetters.length === currentWord.replace(/\s/g, '').length 
     };
-  }, [selectedLetters, targetWords, currentWord, playSound, mistakeIndex]);
+  }, [selectedLetters, targetWords, currentWord, playSound, mistakeLetterId]);
 
   useEffect(() => {
     if (allMatched && !isCorrect && currentWord) {
@@ -351,8 +359,12 @@ const WordGuessGame = () => {
 
         <div className="w-full space-y-2 mb-6">
           <div className="flex gap-2 w-full">
-            <button onClick={handleHint} disabled={isCorrect || hintsUsed >= 5} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 uppercase active:scale-95 shadow-sm disabled:opacity-40">
-              <Lightbulb size={12}/> HINT ({5 - hintsUsed} LEFT)
+            <button
+              onClick={handleHint}
+              disabled={isCorrect || hintsUsed >= 5 || score < 100}
+              className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 uppercase active:scale-95 shadow-sm disabled:opacity-40"
+            >
+              <Lightbulb size={12} /> HINT ({5 - hintsUsed} LEFT) -100P
             </button>
             <button onClick={() => { playSound('click'); setScrambledLetters(p => [...p].sort(() => Math.random() - 0.5)); }} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 uppercase active:scale-95 shadow-sm">
               <RotateCcw size={12}/> Shuffle
