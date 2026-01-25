@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle } from 'lucide-react';
-import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
-
-// 501레벨 이후를 위한 4단어 예시 데이터 (실제 데이터 파일에 추가 권장)
-const fourWordDatabase = [
-  { word: 'BIG RED FIRE TRUCK', category: 'VEHICLES', type: 'Phrase' },
-  { word: 'DEEP BLUE OCEAN WATER', category: 'NATURE', type: 'Phrase' },
-  { word: 'SPRING SUMMER FALL WINTER', category: 'SEASON', type: 'Normal' }
-];
+import { wordDatabase, twoWordDatabase, threeWordDatabase, fourWordDatabase } from '../data/wordDatabase';
 
 const WordGuessGame = () => {
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
