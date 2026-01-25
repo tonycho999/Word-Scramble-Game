@@ -35,6 +35,8 @@ const WordGuessGame = () => {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSInstallMessage, setShowIOSInstallMessage] = useState(false);
+  const [adCooldown, setAdCooldown] = useState(0);
+  const [adsWatched, setAdsWatched] = useState(0);
 
   const matchedWordsRef = useRef(new Set());
   const audioCtxRef = useRef(null);
@@ -46,6 +48,27 @@ const WordGuessGame = () => {
     };
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+  }, []);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const lastWatchedDate = localStorage.getItem('word-game-ad-date');
+    if (lastWatchedDate === today) {
+      setAdsWatched(Number(localStorage.getItem('word-game-ads-watched')) || 0);
+    } else {
+      localStorage.setItem('word-game-ad-date', today);
+      localStorage.setItem('word-game-ads-watched', '0');
+      setAdsWatched(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    const cooldownTimer = setInterval(() => {
+      const cooldownEnd = Number(localStorage.getItem('word-game-ad-cooldown') || 0);
+      const remaining = Math.max(0, Math.ceil((cooldownEnd - Date.now()) / 1000));
+      setAdCooldown(remaining);
+    }, 1000);
+    return () => clearInterval(cooldownTimer);
   }, []);
 
   useEffect(() => {
@@ -163,30 +186,51 @@ const WordGuessGame = () => {
   const handleHint = () => {
     playSound('click');
     if (isCorrect || hintLevel >= 2) return;
-    if (hintLevel === 0 && score >= 100) { setScore(s => s - 100); setHintLevel(1); }
-    else if (hintLevel === 1 && score >= 200) { setScore(s => s - 200); setHintLevel(2); }
-    else { setMessage("Not enough points!"); setTimeout(() => setMessage(''), 2000); }
+
+    if (hintLevel === 0 && score >= 100) {
+      setScore(s => s - 100);
+      setHintLevel(1);
+      const correctChars = new Set(currentWord.replace(/\s/g, '').split(''));
+      const incorrectLetters = scrambledLetters.filter(l => !correctChars.has(l.char.toUpperCase()));
+      const lettersToRemove = incorrectLetters.slice(0, 3);
+      setScrambledLetters(prev => prev.filter(l => !lettersToRemove.find(r => r.id === l.id)));
+    } else if (hintLevel === 1 && score >= 200) {
+      setScore(s => s - 200);
+      setHintLevel(2);
+      const firstLetter = currentWord.charAt(0).toUpperCase();
+      const letterInScrambled = scrambledLetters.find(l => l.char.toUpperCase() === firstLetter);
+      if (letterInScrambled) {
+        setSelectedLetters(p => [...p, letterInScrambled]);
+        setScrambledLetters(p => p.filter(i => i.id !== letterInScrambled.id));
+      }
+    } else {
+      setMessage("Not enough points!");
+      setTimeout(() => setMessage(''), 2000);
+    }
   };
 
   const hintDisplay = useMemo(() => {
     if (hintLevel === 0 || !currentWord) return null;
-    const words = currentWord.split(/\s+/);
-    const hintParts = words.map(word => {
-      const first = word.charAt(0).toUpperCase();
-      const last = word.charAt(word.length - 1).toUpperCase();
-      if (hintLevel === 1) return `${first}...`;
-      if (hintLevel === 2) return word.length > 1 ? `${first}...${last}` : first;
-      return "";
-    });
-    return `Hints: ${hintParts.join(' / ')}`;
-  }, [currentWord, hintLevel]);
+    if (hintLevel === 1) return `Hint: 3 incorrect letters removed.`;
+    if (hintLevel === 2) return `Hint: First letter placed.`;
+    return null;
+  }, [hintLevel, currentWord]);
 
   const handleRewardAd = () => {
+    if (adsWatched >= 10) return;
     playSound('click');
     setIsAdLoading(true);
     setTimeout(() => {
-      setScore(s => s + 200); setIsAdLoading(false);
-      playSound('reward'); setMessage('+200P Reward!');
+      setScore(s => s + 200);
+      setIsAdLoading(false);
+      playSound('reward');
+      setMessage('+200P Reward!');
+      const newAdsWatched = adsWatched + 1;
+      localStorage.setItem('word-game-ads-watched', newAdsWatched);
+      setAdsWatched(newAdsWatched);
+      const cooldownEnd = Date.now() + 5 * 60 * 1000; // 5 minutes
+      localStorage.setItem('word-game-ad-cooldown', cooldownEnd);
+      setAdCooldown(300);
       setTimeout(() => setMessage(''), 2000);
     }, 2500);
   };
@@ -305,8 +349,19 @@ const WordGuessGame = () => {
               <RotateCcw size={12}/> Shuffle
             </button>
           </div>
-          <button onClick={handleRewardAd} className="w-full px-4 py-2.5 bg-amber-400 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-md">
-            <PlayCircle size={14}/> {isAdLoading ? 'WATCHING...' : 'GET FREE +200P'}
+          <button
+            onClick={handleRewardAd}
+            disabled={adCooldown > 0 || isAdLoading || adsWatched >= 10}
+            className="w-full px-4 py-2.5 bg-amber-400 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <PlayCircle size={14} />
+            {isAdLoading
+              ? 'WATCHING...'
+              : adCooldown > 0
+              ? `WAIT ${Math.floor(adCooldown / 60)}:${(adCooldown % 60).toString().padStart(2, '0')}`
+              : adsWatched >= 10
+              ? 'DAILY LIMIT REACHED'
+              : 'GET FREE +200P'}
           </button>
         </div>
 
