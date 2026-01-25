@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle } from 'lucide-react';
-import { wordDatabase, twoWordDatabase, threeWordDatabase, fourWordDatabase } from '../data/wordDatabase';
+import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
+
+// 501레벨 이후를 위한 4단어 예시 데이터 (실제 데이터 파일에 추가 권장)
+const fourWordDatabase = [
+  { word: 'BIG RED FIRE TRUCK', category: 'VEHICLES', type: 'Phrase' },
+  { word: 'DEEP BLUE OCEAN WATER', category: 'NATURE', type: 'Phrase' },
+  { word: 'SPRING SUMMER FALL WINTER', category: 'SEASON', type: 'Normal' }
+];
 
 const WordGuessGame = () => {
   const [level, setLevel] = useState(() => Number(localStorage.getItem('word-game-level')) || 1);
@@ -29,55 +36,12 @@ const WordGuessGame = () => {
   });
 
   const [isCorrect, setIsCorrect] = useState(false);
-  const [hintLevel, setHintLevel] = useState(0);
+  const [hintLevel, setHintLevel] = useState(() => Number(localStorage.getItem('word-game-hint-level')) || 0);
   const [message, setMessage] = useState('');
   const [isAdLoading, setIsAdLoading] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState(null);
-  const [isIOS, setIsIOS] = useState(false);
-  const [showIOSInstallMessage, setShowIOSInstallMessage] = useState(false);
-  const [adCooldown, setAdCooldown] = useState(0);
-  const [adsWatched, setAdsWatched] = useState(0);
 
   const matchedWordsRef = useRef(new Set());
   const audioCtxRef = useRef(null);
-
-  useEffect(() => {
-    const handleInstallPrompt = (e) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
-  }, []);
-
-  useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const lastWatchedDate = localStorage.getItem('word-game-ad-date');
-    if (lastWatchedDate === today) {
-      setAdsWatched(Number(localStorage.getItem('word-game-ads-watched')) || 0);
-    } else {
-      localStorage.setItem('word-game-ad-date', today);
-      localStorage.setItem('word-game-ads-watched', '0');
-      setAdsWatched(0);
-    }
-  }, []);
-
-  useEffect(() => {
-    const cooldownTimer = setInterval(() => {
-      const cooldownEnd = Number(localStorage.getItem('word-game-ad-cooldown') || 0);
-      const remaining = Math.max(0, Math.ceil((cooldownEnd - Date.now()) / 1000));
-      setAdCooldown(remaining);
-    }, 1000);
-    return () => clearInterval(cooldownTimer);
-  }, []);
-
-  useEffect(() => {
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    setIsIOS(isIOSDevice);
-    if (isIOSDevice && !window.navigator.standalone) {
-      setShowIOSInstallMessage(true);
-    }
-  }, []);
 
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
@@ -88,7 +52,8 @@ const WordGuessGame = () => {
     localStorage.setItem('word-game-word-type', wordType);
     localStorage.setItem('word-game-scrambled', JSON.stringify(scrambledLetters));
     localStorage.setItem('word-game-selected', JSON.stringify(selectedLetters));
-  }, [level, score, usedWordIds, currentWord, category, wordType, scrambledLetters, selectedLetters]);
+    localStorage.setItem('word-game-hint-level', hintLevel);
+  }, [level, score, usedWordIds, currentWord, category, wordType, scrambledLetters, selectedLetters, hintLevel]);
 
   const playSound = useCallback(async (type) => {
     try {
@@ -184,16 +149,11 @@ const WordGuessGame = () => {
 
   const handleHint = () => {
     playSound('click');
-    if (isCorrect || hintLevel >= 3) return;
-    if (score < 100) {
-      setMessage("Not enough points!");
-      setTimeout(() => setMessage(''), 2000);
-      return;
-    }
-    setScore(s => s - 100);
-    setHintLevel(h => h + 1);
+    if (isCorrect || hintLevel >= 2) return;
+    if (hintLevel === 0 && score >= 100) { setScore(s => s - 100); setHintLevel(1); }
+    else if (hintLevel === 1 && score >= 200) { setScore(s => s - 200); setHintLevel(2); }
+    else { setMessage("Not enough points!"); setTimeout(() => setMessage(''), 2000); }
   };
-
 
   const hintDisplay = useMemo(() => {
     if (hintLevel === 0 || !currentWord) return null;
@@ -202,28 +162,18 @@ const WordGuessGame = () => {
       const first = word.charAt(0).toUpperCase();
       const last = word.charAt(word.length - 1).toUpperCase();
       if (hintLevel === 1) return `${first}...`;
-      if (hintLevel === 2) return `${first}...${last}`;
-      if (hintLevel === 3) return `${word.toUpperCase()} (${word.length})`;
+      if (hintLevel === 2) return word.length > 1 ? `${first}...${last}` : first;
       return "";
     });
-    return `Hint: ${hintParts.join(' / ')}`;
+    return `Hints: ${hintParts.join(' / ')}`;
   }, [currentWord, hintLevel]);
 
   const handleRewardAd = () => {
-    if (adsWatched >= 10) return;
     playSound('click');
     setIsAdLoading(true);
     setTimeout(() => {
-      setScore(s => s + 200);
-      setIsAdLoading(false);
-      playSound('reward');
-      setMessage('+200P Reward!');
-      const newAdsWatched = adsWatched + 1;
-      localStorage.setItem('word-game-ads-watched', newAdsWatched);
-      setAdsWatched(newAdsWatched);
-      const cooldownEnd = Date.now() + 5 * 60 * 1000; // 5 minutes
-      localStorage.setItem('word-game-ad-cooldown', cooldownEnd);
-      setAdCooldown(300);
+      setScore(s => s + 200); setIsAdLoading(false);
+      playSound('reward'); setMessage('+200P Reward!');
       setTimeout(() => setMessage(''), 2000);
     }, 2500);
   };
@@ -261,13 +211,8 @@ const WordGuessGame = () => {
       return (
         <div key={`word-${idx}`} className="flex flex-col items-center mb-2 last:mb-0">
           <div className="flex gap-1 items-center flex-wrap justify-center min-h-[32px]">
-            {displayLetters.map((l, letterIdx) => (
-              <span
-                key={l.id}
-                className={`text-2xl font-black transition-all ${
-                  isWordMatch ? 'text-green-500' : 'text-indigo-600'
-                }`}
-              >
+            {displayLetters.map((l) => (
+              <span key={l.id} className={`text-2xl font-black transition-all ${isWordMatch ? 'text-green-500' : 'text-indigo-600'}`}>
                 {l.char.toUpperCase()}
               </span>
             ))}
@@ -298,32 +243,9 @@ const WordGuessGame = () => {
     setCurrentWord('');
   };
 
-  const handleInstallClick = () => {
-    if (installPrompt) {
-      installPrompt.prompt();
-      installPrompt.userChoice.then(() => {
-        setInstallPrompt(null);
-      });
-    }
-  };
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-indigo-600 p-4 font-sans relative text-gray-900">
-      {showIOSInstallMessage && (
-        <div className="absolute top-0 left-0 right-0 bg-gray-800 text-white text-center p-4 z-50">
-          To install this game on your iPhone, tap the Share button and then 'Add to Home Screen'.
-          <button onClick={() => setShowIOSInstallMessage(false)} className="absolute top-2 right-2 text-white font-bold">&times;</button>
-        </div>
-      )}
       <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-md shadow-2xl flex flex-col items-center border-t-8 border-indigo-500 mx-auto">
-        {installPrompt && !isIOS && (
-          <button
-            onClick={handleInstallClick}
-            className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-lg animate-bounce"
-          >
-            INSTALL
-          </button>
-        )}
         <div className="w-full flex justify-between items-center mb-4 font-black text-indigo-600">
           <span className="text-lg uppercase">LEVEL {level}</span>
           <span className="flex items-center gap-1 text-gray-700"><Trophy size={18} className="text-yellow-500"/> {score}</span>
@@ -335,35 +257,20 @@ const WordGuessGame = () => {
             <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${wordType === 'Phrase' ? 'bg-pink-100 text-pink-600' : 'bg-green-100 text-green-600'}`}>{wordType}</span>
           </div>
           <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase mb-1">{category}</h2>
-          {hintDisplay && <div className="text-indigo-500 font-bold text-xs animate-pulse h-4 mt-1">{hintDisplay}</div>}
+          {hintDisplay && <div className="text-indigo-500 font-bold text-xs animate-pulse h-4">{hintDisplay}</div>}
         </div>
 
         <div className="w-full space-y-2 mb-6">
           <div className="flex gap-2 w-full">
-            <button
-              onClick={handleHint}
-              disabled={isCorrect || hintLevel >= 3 || score < 100}
-              className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 uppercase active:scale-95 shadow-sm disabled:opacity-40"
-            >
-              <Lightbulb size={12} /> HINT {hintLevel + 1} (-100P)
+            <button onClick={handleHint} disabled={isCorrect || hintLevel >= 2} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 uppercase active:scale-95 shadow-sm disabled:opacity-40">
+              <Lightbulb size={12}/> {hintLevel === 0 ? 'Hint 1' : hintLevel === 1 ? 'Hint 2' : 'No More'}
             </button>
             <button onClick={() => { playSound('click'); setScrambledLetters(p => [...p].sort(() => Math.random() - 0.5)); }} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 uppercase active:scale-95 shadow-sm">
               <RotateCcw size={12}/> Shuffle
             </button>
           </div>
-          <button
-            onClick={handleRewardAd}
-            disabled={adCooldown > 0 || isAdLoading || adsWatched >= 10}
-            className="w-full px-4 py-2.5 bg-amber-400 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <PlayCircle size={14} />
-            {isAdLoading
-              ? 'WATCHING...'
-              : adCooldown > 0
-              ? `WAIT ${Math.floor(adCooldown / 60)}:${(adCooldown % 60).toString().padStart(2, '0')}`
-              : adsWatched >= 10
-              ? 'DAILY LIMIT REACHED'
-              : 'GET FREE +200P'}
+          <button onClick={handleRewardAd} className="w-full px-4 py-2.5 bg-amber-400 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-md">
+            <PlayCircle size={14}/> {isAdLoading ? 'WATCHING...' : 'GET FREE +200P'}
           </button>
         </div>
 
