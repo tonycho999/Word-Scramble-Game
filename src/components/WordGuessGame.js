@@ -32,9 +32,29 @@ const WordGuessGame = () => {
   const [hintLevel, setHintLevel] = useState(() => Number(localStorage.getItem('word-game-hint-level')) || 0);
   const [message, setMessage] = useState('');
   const [isAdLoading, setIsAdLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSInstallMessage, setShowIOSInstallMessage] = useState(false);
 
   const matchedWordsRef = useRef(new Set());
   const audioCtxRef = useRef(null);
+
+  useEffect(() => {
+    const handleInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+  }, []);
+
+  useEffect(() => {
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(isIOSDevice);
+    if (isIOSDevice && !window.navigator.standalone) {
+      setShowIOSInstallMessage(true);
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('word-game-level', level);
@@ -236,9 +256,32 @@ const WordGuessGame = () => {
     setCurrentWord('');
   };
 
+  const handleInstallClick = () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      installPrompt.userChoice.then(() => {
+        setInstallPrompt(null);
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-indigo-600 p-4 font-sans relative text-gray-900">
+      {showIOSInstallMessage && (
+        <div className="absolute top-0 left-0 right-0 bg-gray-800 text-white text-center p-4 z-50">
+          To install this game on your iPhone, tap the Share button and then 'Add to Home Screen'.
+          <button onClick={() => setShowIOSInstallMessage(false)} className="absolute top-2 right-2 text-white font-bold">&times;</button>
+        </div>
+      )}
       <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-md shadow-2xl flex flex-col items-center border-t-8 border-indigo-500 mx-auto">
+        {installPrompt && !isIOS && (
+          <button
+            onClick={handleInstallClick}
+            className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-lg animate-bounce"
+          >
+            INSTALL
+          </button>
+        )}
         <div className="w-full flex justify-between items-center mb-4 font-black text-indigo-600">
           <span className="text-lg uppercase">LEVEL {level}</span>
           <span className="flex items-center gap-1 text-gray-700"><Trophy size={18} className="text-yellow-500"/> {score}</span>
