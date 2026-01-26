@@ -204,7 +204,7 @@ const WordGuessGame = () => {
   }, [currentWord, hintLevel]);
 
   const handleRewardAd = () => {
-    if (isAdLoading || adCooldown > 0 || adsWatched >= 10) return;
+    if (isAdLoading || adCooldown > 0 || adsWatched >= 20) return;
     setIsAdLoading(true);
     playSound('click');
     setTimeout(() => {
@@ -317,14 +317,14 @@ const WordGuessGame = () => {
               <RotateCcw size={12}/> Shuffle
             </button>
           </div>
-          <button onClick={handleRewardAd} disabled={isAdLoading || adCooldown > 0 || adsWatched >= 10} className="w-full px-4 py-2.5 bg-amber-400 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={handleRewardAd} disabled={isAdLoading || adCooldown > 0 || adsWatched >= 20} className="w-full px-4 py-2.5 bg-amber-400 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
             <PlayCircle size={14}/>
             {isAdLoading
               ? 'WATCHING...'
               : adCooldown > 0
               ? `WAIT ${Math.floor(adCooldown / 60)}:${(adCooldown % 60).toString().padStart(2, '0')}`
-              : adsWatched >= 10
-              ? `DAILY LIMIT REACHED (${adsWatched}/10)`
+              : adsWatched >= 20
+              ? `DAILY LIMIT REACHED (${adsWatched}/20)`
               : 'GET FREE +200P'}
           </button>
         </div>
