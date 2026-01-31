@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle } from 'lucide-react';
+import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle, Download } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
 const fourWordDatabase = [
@@ -43,9 +43,29 @@ const WordGuessGame = () => {
   const [isAdVisible, setIsAdVisible] = useState(true);
   const [adClickCount, setAdClickCount] = useState(0);
   const [isAdLoading, setIsAdLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
 
   const matchedWordsRef = useRef(new Set());
   const audioCtxRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        setInstallPrompt(null);
+      }
+    });
+  };
 
   // --- 오디오 재생 ---
   const playSound = useCallback(async (type) => {
@@ -287,7 +307,14 @@ const WordGuessGame = () => {
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-indigo-600 p-4">
       <div className="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl flex flex-col items-center border-t-8 border-indigo-500">
         <div className="w-full flex justify-between items-center mb-4 font-black text-indigo-600">
-          <span>LEVEL {level}</span>
+          <div className="flex items-center gap-2">
+            <span>LEVEL {level}</span>
+            {installPrompt && (
+              <button onClick={handleInstallClick} className="bg-indigo-100 p-1 rounded-full text-indigo-600 animate-pulse">
+                <Download size={16} />
+              </button>
+            )}
+          </div>
           <span className="flex items-center gap-1"><Trophy size={18} className="text-yellow-500"/> {score}</span>
         </div>
 
