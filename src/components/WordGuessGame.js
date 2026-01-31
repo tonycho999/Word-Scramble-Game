@@ -44,10 +44,11 @@ const WordGuessGame = () => {
   const [adClickCount, setAdClickCount] = useState(0);
   const [isAdLoading, setIsAdLoading] = useState(false);
 
-  // PWA Install Prompt
+  // PWA Install Prompt & Environment
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIos, setIsIos] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const [showIosInstallModal, setShowIosInstallModal] = useState(false);
   const [showAndroidInstallModal, setShowAndroidInstallModal] = useState(false);
 
@@ -61,7 +62,7 @@ const WordGuessGame = () => {
     }
   }, []);
 
-  // --- Install Prompt Listener & OS Detection ---
+  // --- Install Prompt Listener & OS/Mode Detection ---
   useEffect(() => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
     const iOS = /iPhone|iPad|iPod/.test(userAgent) && !window.MSStream;
@@ -69,6 +70,16 @@ const WordGuessGame = () => {
 
     setIsIos(iOS);
     setIsAndroid(android);
+
+    // Detect standalone mode (App is installed)
+    const checkStandalone = () => {
+      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
+                               window.navigator.standalone === true; // iOS specific
+      setIsStandalone(isStandaloneMode);
+    };
+
+    checkStandalone();
+    window.matchMedia('(display-mode: standalone)').addEventListener('change', checkStandalone);
 
     // Check if the event was already captured in index.html
     if (window.deferredPrompt) {
@@ -82,7 +93,10 @@ const WordGuessGame = () => {
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.matchMedia('(display-mode: standalone)').removeEventListener('change', checkStandalone);
+    };
   }, []);
 
   const handleInstallClick = () => {
@@ -370,7 +384,8 @@ const WordGuessGame = () => {
             </button>
           </div>
 
-          {(deferredPrompt || isIos || isAndroid) && (
+          {/* Install Button: Only show if NOT installed (standalone) AND on a supported platform */}
+          {!isStandalone && (deferredPrompt || isIos || isAndroid) && (
             <button onClick={handleInstallClick} className="w-full px-4 py-2.5 bg-indigo-500 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-sm">
               <Download size={14}/> INSTALL APP
             </button>
