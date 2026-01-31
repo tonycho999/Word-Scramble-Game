@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle, Download, Share, X } from 'lucide-react';
+import { Trophy, Delete, ArrowRight, Lightbulb, RotateCcw, PlayCircle, Download, Share, X, MoreVertical } from 'lucide-react';
 import { wordDatabase, twoWordDatabase, threeWordDatabase } from '../data/wordDatabase';
 
 const fourWordDatabase = [
@@ -47,7 +47,9 @@ const WordGuessGame = () => {
   // PWA Install Prompt
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIos, setIsIos] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
   const [showIosInstallModal, setShowIosInstallModal] = useState(false);
+  const [showAndroidInstallModal, setShowAndroidInstallModal] = useState(false);
 
   const matchedWordsRef = useRef(new Set());
   const audioCtxRef = useRef(null);
@@ -61,13 +63,22 @@ const WordGuessGame = () => {
 
   // --- Install Prompt Listener & OS Detection ---
   useEffect(() => {
-    // Detect iOS
-    const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
-    setIsIos(iOS);
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const iOS = /iPhone|iPad|iPod/.test(userAgent) && !window.MSStream;
+    const android = /Android/.test(userAgent);
 
-    // Android/Desktop PWA prompt
+    setIsIos(iOS);
+    setIsAndroid(android);
+
+    // Check if the event was already captured in index.html
+    if (window.deferredPrompt) {
+      setDeferredPrompt(window.deferredPrompt);
+    }
+
+    // Android/Desktop PWA prompt listener
     const handler = (e) => {
       e.preventDefault();
+      window.deferredPrompt = e; // Sync global
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -80,10 +91,14 @@ const WordGuessGame = () => {
       deferredPrompt.userChoice.then((choiceResult) => {
         if (choiceResult.outcome === 'accepted') {
           setDeferredPrompt(null);
+          window.deferredPrompt = null;
         }
       });
     } else if (isIos) {
       setShowIosInstallModal(true);
+    } else if (isAndroid) {
+      // Fallback for Android if deferredPrompt is not available (e.g. dismissed before, or in-app browser)
+      setShowAndroidInstallModal(true);
     }
   };
 
@@ -355,7 +370,7 @@ const WordGuessGame = () => {
             </button>
           </div>
 
-          {(deferredPrompt || isIos) && (
+          {(deferredPrompt || isIos || isAndroid) && (
             <button onClick={handleInstallClick} className="w-full px-4 py-2.5 bg-indigo-500 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1 active:scale-95 shadow-sm">
               <Download size={14}/> INSTALL APP
             </button>
@@ -419,6 +434,29 @@ const WordGuessGame = () => {
               </div>
             </div>
             <button onClick={() => setShowIosInstallModal(false)} className="mt-6 w-full py-3 bg-indigo-600 text-white rounded-xl font-black">GOT IT!</button>
+          </div>
+        </div>
+      )}
+
+      {/* Android Install Modal (Fallback) */}
+      {showAndroidInstallModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setShowAndroidInstallModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm flex flex-col items-center shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between w-full items-center mb-4">
+              <h3 className="font-black text-xl text-gray-900">Install App</h3>
+              <button onClick={() => setShowAndroidInstallModal(false)} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
+            </div>
+            <div className="space-y-4 text-center">
+              <p className="text-sm font-medium text-gray-600">To install the app:</p>
+              <div className="flex items-center justify-center gap-2 text-indigo-600 font-bold bg-indigo-50 p-3 rounded-xl">
+                <span>1. Tap the menu button</span>
+                <MoreVertical size={20} />
+              </div>
+              <div className="flex items-center justify-center gap-2 text-indigo-600 font-bold bg-indigo-50 p-3 rounded-xl">
+                <span>2. Select 'Install App' or 'Add to Home Screen'</span>
+              </div>
+            </div>
+            <button onClick={() => setShowAndroidInstallModal(false)} className="mt-6 w-full py-3 bg-indigo-600 text-white rounded-xl font-black">GOT IT!</button>
           </div>
         </div>
       )}
