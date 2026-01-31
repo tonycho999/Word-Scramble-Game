@@ -213,7 +213,7 @@ const WordGuessGame = () => {
   // --- 렌더링 로직 ---
   const targetWords = useMemo(() => currentWord.toLowerCase().split(/\s+/).filter(w => w.length > 0), [currentWord]);
   
-  const { renderedComponents, allMatched } = useMemo(() => {
+  const { renderedComponents, allMatched, usedInMatchIds } = useMemo(() => {
     let tempSelected = [...selectedLetters];
     let matchedCount = 0;
     let usedInMatch = new Set();
@@ -252,7 +252,9 @@ const WordGuessGame = () => {
 
     return { 
       renderedComponents: components, 
-      allMatched: matchedCount === targetWords.length && selectedLetters.length === currentWord.replace(/\s/g, '').length 
+      allMatched: matchedCount === targetWords.length && selectedLetters.length === currentWord.replace(/\s/g, '').length,
+      matchedIndices: matchedWordsRef.current,
+      usedInMatchIds: usedInMatch
     };
   }, [selectedLetters, targetWords, currentWord, playSound]);
 
@@ -317,17 +319,23 @@ const WordGuessGame = () => {
           {selectedLetters.length === 0 ? (
             <span className="text-gray-300 font-black uppercase text-[10px] tracking-widest text-center">Tap letters below</span>
           ) : (
-            allMatched ? (
-              <div className="w-full">{renderedComponents}</div>
-            ) : (
+            <div className="w-full flex flex-col items-center">
+              {/* Solved words area */}
+              {matchedWordsRef.current.size > 0 && (
+                <div className="w-full mb-4">
+                  {renderedComponents.filter((_, idx) => matchedWordsRef.current.has(idx))}
+                </div>
+              )}
+
+              {/* Current input stream (unsolved letters) */}
               <div className="flex flex-wrap gap-1 justify-center items-center">
-                {selectedLetters.map((l) => (
+                {selectedLetters.filter(l => !usedInMatchIds.has(l.id)).map((l) => (
                   <span key={l.id} className="text-2xl font-black text-indigo-600">
                     {l.char.toUpperCase()}
                   </span>
                 ))}
               </div>
-            )
+            </div>
           )}
           {(isCorrect || message) && <div className="text-green-500 font-black mt-2 text-xs animate-bounce">{message || 'CORRECT!'}</div>}
         </div>
